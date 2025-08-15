@@ -150,14 +150,12 @@ jobs:
         # Create API key file for authentication
         echo "🔐 Creating API key file..."
         
-        # Create JSON file with proper escaping for the API key
-        cat > /tmp/api_key.json << 'EOF'
-        {
-          "key_id": "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}",
-          "issuer_id": "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}",
-          "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}"
-        }
-        EOF
+        # Create JSON file with proper handling of newlines in API key
+        echo '{
+          "key_id": "'${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}'",
+          "issuer_id": "'${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}'",
+          "key": "'$(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | tr -d '\n' | tr -d '\r')'"
+        }' > /tmp/api_key.json
         
         # Verify JSON is valid
         echo "🔍 Verifying API key JSON format..."
