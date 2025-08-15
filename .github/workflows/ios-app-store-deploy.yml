@@ -105,16 +105,24 @@ jobs:
         echo "✅ IPA file created successfully"
         ls -la App.ipa
     
-    - name: Upload to App Store Connect
-      uses: apple-actions/upload-testflight@v1
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
       with:
-        app-path: ios/App/App.ipa
-        api-key: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
-        api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-        api-issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        skip-waiting-for-processing: true
-        skip-metadata-upload: true
-        skip-screenshots: true
+        ruby-version: '3.0'
+        bundler-cache: true
+    
+    - name: Install Fastlane
+      run: |
+        gem install fastlane
+    
+    - name: Upload to App Store Connect
+      run: |
+        fastlane pilot upload \
+          --ipa "ios/App/App.ipa" \
+          --api_key_path <(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}") \
+          --api_key_id "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+          --issuer_id "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+          --skip_waiting_for_build_processing
     
     - name: Upload IPA as artifact
       uses: actions/upload-artifact@v4
