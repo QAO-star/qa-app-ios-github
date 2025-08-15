@@ -2,6 +2,8 @@
 
 A Capacitor-based iOS app that wraps the QA-Online web application for native iOS distribution with automated App Store builds.
 
+**🚀 Ready for automated deployment!**
+
 ## 🍎 Features
 
 - **Native iOS App**: Wraps QA-Online web application in a native iOS container
