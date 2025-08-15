@@ -118,22 +118,24 @@ jobs:
         platform :ios do
           desc "Generate certificates and profiles"
           lane :generate_certificates do
-            # Generate distribution certificate using Apple ID authentication
+            # Generate distribution certificate using API key
             cert(
               development: false,
               force: true,
               generate_apple_certs: true,
-              team_id: "${{ secrets.APPLE_TEAM_ID }}"
+              team_id: "${{ secrets.APPLE_TEAM_ID }}",
+              api_key_path: "/tmp/api_key.json"
             )
             
-            # Generate provisioning profile using Apple ID authentication
+            # Generate provisioning profile using API key
             sigh(
               app_identifier: "com.qaonline.app",
               team_id: "${{ secrets.APPLE_TEAM_ID }}",
               force: true,
               development: false,
               adhoc: false,
-              distribution_type: "app-store"
+              distribution_type: "app-store",
+              api_key_path: "/tmp/api_key.json"
             )
             
             # Export certificates for storage
@@ -148,26 +150,26 @@ jobs:
         # Create API key file for authentication
         echo "🔐 Creating API key file..."
         
-        # Create JSON file using printf to handle newlines properly
-        printf '{
-          "key_id": "%s",
-          "issuer_id": "%s",
-          "key": "%s"
-        }' "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > /tmp/api_key.json
+        # Create JSON file with proper escaping for the API key
+        cat > /tmp/api_key.json << 'EOF'
+        {
+          "key_id": "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}",
+          "issuer_id": "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}",
+          "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}"
+        }
+        EOF
         
         # Verify JSON is valid
         echo "🔍 Verifying API key JSON format..."
         if jq . /tmp/api_key.json > /dev/null 2>&1; then
           echo "✅ JSON is valid"
         else
-          echo "❌ JSON is invalid, trying alternative approach..."
-          # Try creating with base64 encoding (macOS compatible)
-          echo '{
-            "key_id": "'${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}'",
-            "issuer_id": "'${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}'",
-            "key": "'$(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 | tr -d '\n')'"
-          }' > /tmp/api_key.json
-          echo "✅ JSON created with base64 encoding"
+          echo "❌ JSON is invalid, showing content for debugging..."
+          echo "API Key ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
+          echo "Issuer ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+          echo "API Key length: $(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | wc -c) characters"
+          echo "JSON content:"
+          cat /tmp/api_key.json
         fi
         
         # Create Appfile for configuration
