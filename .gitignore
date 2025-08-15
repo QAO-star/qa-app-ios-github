@@ -1,0 +1,9 @@
+node_modules/
+dist/
+www/
+.DS_Store
+*.log
+ios/App/build/
+*.ipa
+*.apk
+*.aab

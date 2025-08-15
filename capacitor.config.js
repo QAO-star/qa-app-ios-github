@@ -1,0 +1,34 @@
+module.exports = {
+  appId: 'com.qaonline.app',
+  appName: 'QA-Online',
+  webDir: 'public',
+  server: {
+    iosScheme: 'https',
+    cleartext: true,
+    allowNavigation: [
+      'https://aiagent.qaonline.co.il/*',
+      'https://tmsvc.qaonline.co.il/*'
+    ]
+  },
+  ios: {
+    backgroundColor: '#ffffff',
+    contentInset: 'always',
+    allowsLinkPreview: false,
+    scrollEnabled: true,
+    statusBar: {
+      style: 'light-content',
+      backgroundColor: 'transparent',
+      overlaysWebView: true
+    }
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      backgroundColor: '#ffffff',
+      showSpinner: true,
+      spinnerColor: '#000000',
+      splashFullScreen: false,
+      splashImmersive: false
+    }
+  }
+};

@@ -1,0 +1,20 @@
+{
+  "name": "qa-app-ios",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'No build step needed for static HTML'",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "cap:sync": "cap sync",
+    "cap:build:ios": "cap build ios"
+  },
+  "keywords": ["ios", "capacitor", "qa-online"],
+  "author": "QA-Online",
+  "license": "ISC",
+  "description": "QA-Online iOS app with automated App Store builds",
+  "dependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  }
+}
