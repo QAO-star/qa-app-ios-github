@@ -18,8 +18,8 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     env:
-      FASTLANE_USER: ${{ secrets.APPLE_DEVELOPER_EMAIL }}
-      FASTLANE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PASSWORD }}
+      FASTLANE_USER: jonatan.k@qaonline.co.il
+      FASTLANE_PASSWORD: kvyz-vbth-czju-ysnz
       FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     
     steps:
