@@ -7,6 +7,11 @@ on:
   release:
     types: [published]  # Triggers when a release is published
 
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
 env:
   NODE_VERSION: '18'
   XCODE_VERSION: '15.2'
@@ -174,12 +179,10 @@ jobs:
     
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: QA-Online iOS App ${{ github.ref_name }}
+        tag_name: ${{ github.ref_name }}
+        name: QA-Online iOS App ${{ github.ref_name }}
         body: |
           ## QA-Online iOS App Release ${{ github.ref_name }}
           
@@ -190,7 +193,6 @@ jobs:
           ### Build Information
           - Build Number: ${{ github.run_number }}
           - Commit: ${{ github.sha }}
-          - Branch: ${{ github.ref_name }}
           - Bundle ID: com.qaonline.app
           
           ### Installation
@@ -201,3 +203,4 @@ jobs:
           The signed IPA file is available as an artifact in the Actions tab.
         draft: false
         prerelease: false
+        files: ios/App/App.ipa
