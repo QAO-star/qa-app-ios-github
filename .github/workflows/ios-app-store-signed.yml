@@ -88,7 +88,7 @@ jobs:
         fi
         
         if [ "$CERT_IMPORTED" = false ]; then
-          echo "❌ Failed to import certificate with any password"
+          echo "❌ Failed to import certificate"
           echo "🔍 Certificate file info:"
           file ios_distribution.p12
           echo "🔍 Certificate file size:"
@@ -97,16 +97,29 @@ jobs:
           head -c 100 ios_distribution.p12 | xxd
           
           echo ""
-          echo "⚠️ Certificate import failed. The P12 file exists but none of the passwords work."
+          echo "🔍 Base64 content length:"
+          echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | wc -c
+          
           echo ""
-          echo "🔧 SOLUTION: You need to recreate the P12 certificate file."
+          echo "⚠️ Certificate import failed. Possible issues:"
+          echo "1. P12 file not created properly"
+          echo "2. Base64 content not copied correctly to GitHub secret"
+          echo "3. Certificate file corrupted during base64 encoding/decoding"
           echo ""
-          echo "📋 OPTIONS:"
-          echo "1. Run the helper script: ./recreate-p12-certificate.sh"
-          echo "2. Or manually recreate on your Mac:"
-          echo "   openssl pkcs12 -export -out ios_distribution.p12 -inkey ios_distribution.key -in ios_distribution.cer -nodes"
+          echo "🔧 SOLUTION: Let's verify the setup step by step"
           echo ""
-          echo "3. Then update GitHub secrets and create a new tag."
+          echo "📋 VERIFICATION STEPS:"
+          echo "1. On your Mac, verify the P12 file exists and is valid:"
+          echo "   ls -la ios_distribution.p12"
+          echo "   file ios_distribution.p12"
+          echo ""
+          echo "2. Verify base64 encoding works:"
+          echo "   base64 -w 0 ios_distribution.p12 > test_base64.txt"
+          echo "   base64 -d test_base64.txt > test_decoded.p12"
+          echo "   diff ios_distribution.p12 test_decoded.p12"
+          echo ""
+          echo "3. If the diff shows no differences, the issue is in GitHub secrets"
+          echo "4. If there are differences, recreate the P12 file"
           echo ""
           exit 1
         fi
