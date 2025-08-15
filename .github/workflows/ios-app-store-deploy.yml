@@ -131,12 +131,9 @@ jobs:
           MARKETING_VERSION="1.0.0" \
           CODE_SIGN_KEYCHAIN="build.keychain"
         
-        # Export IPA using minimal options
-        echo "📦 Exporting IPA..."
-        xcodebuild -exportArchive \
-          -archivePath App.xcarchive \
-          -exportPath . \
-          -exportOptionsPlist exportOptions-minimal.plist
+        # Extract IPA manually from archive
+        echo "📦 Manually extracting IPA from archive..."
+        ../../extract-ipa.sh
     
     - name: Verify IPA file
       run: |
