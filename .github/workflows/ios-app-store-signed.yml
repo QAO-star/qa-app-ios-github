@@ -121,6 +121,20 @@ jobs:
           echo "📁 Certificates directory contents:"
           ls -la certificates/
         fi
+        
+        # Import certificates into the temporary keychain
+        if [ -f "certificates/distribution.p12" ]; then
+          echo "🔐 Importing distribution certificate into keychain..."
+          security import certificates/distribution.p12 -k ../../build.keychain -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD || '' }}"
+          echo "✅ Distribution certificate imported into keychain"
+        fi
+        
+        if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
+          echo "📋 Installing provisioning profile..."
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "✅ Provisioning profile installed"
+        fi
     
     - name: Configure manual signing with certificates
       run: |
