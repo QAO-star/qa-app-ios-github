@@ -126,15 +126,15 @@ jobs:
         if [ -f "certificates/distribution.p12" ]; then
           echo "🔐 Importing distribution certificate into default keychain..."
           
-          # Try with password first
+          # Try with password first (with timeout)
           if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
             echo "🔐 Trying with password..."
-            security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" || echo "⚠️ Password import failed, trying without password..."
+            timeout 30s security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" || echo "⚠️ Password import failed or timed out, trying without password..."
           fi
           
-          # Try without password
+          # Try without password (with timeout)
           echo "🔐 Trying without password..."
-          security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || echo "⚠️ Import failed, but continuing..."
+          timeout 30s security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || echo "⚠️ Import failed or timed out, but continuing..."
           
           echo "✅ Distribution certificate import completed"
         fi
