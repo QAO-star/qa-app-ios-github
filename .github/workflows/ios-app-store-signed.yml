@@ -154,7 +154,13 @@ jobs:
         
         # Generate certificates
         echo "🔐 Generating certificates with Fastlane..."
-        fastlane generate_certificates --non_interactive
+        # Set environment variables to make fastlane non-interactive
+        export FASTLANE_DISABLE_COLORS=1
+        export FASTLANE_SKIP_UPDATE_CHECK=1
+        export FASTLANE_HIDE_CHANGELOG=1
+        
+        # Run fastlane with non-interactive environment
+        CI=true fastlane generate_certificates
         
         # Store certificates for later use
         if [ -d "certificates" ]; then
