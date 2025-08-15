@@ -89,8 +89,26 @@ jobs:
       run: |
         cd ios/App
         
+        # Create fastlane directory structure
+        mkdir -p fastlane
+        
         # Create Fastfile for certificate generation
-        cat > Fastfile << 'EOF'
+        cat > fastlane/Fastfile << 'EOF'
+        # This file contains the fastlane.tools configuration
+        # You can find the documentation at https://docs.fastlane.tools
+        #
+        # For a list of all available actions, check out
+        #
+        #     https://docs.fastlane.tools/actions
+        #
+        # For a list of all available plugins, check out
+        #
+        #     https://docs.fastlane.tools/plugins/available-plugins
+        #
+        
+        # Uncomment the line if you want fastlane to automatically update itself
+        # update_fastlane
+        
         default_platform(:ios)
         
         platform :ios do
@@ -125,9 +143,18 @@ jobs:
         end
         EOF
         
+        # Create Appfile for configuration
+        cat > fastlane/Appfile << 'EOF'
+        app_identifier("com.qaonline.app") # The bundle identifier of your app
+        apple_id("${{ secrets.APPLE_DEVELOPER_EMAIL }}") # Your Apple email address
+        
+        itc_team_id("${{ secrets.APPLE_TEAM_ID }}") # App Store Connect Team ID
+        team_id("${{ secrets.APPLE_TEAM_ID }}") # Developer Portal Team ID
+        EOF
+        
         # Generate certificates
         echo "🔐 Generating certificates with Fastlane..."
-        fastlane generate_certificates
+        fastlane generate_certificates --non_interactive
         
         # Store certificates for later use
         if [ -d "certificates" ]; then
