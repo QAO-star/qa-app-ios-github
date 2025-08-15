@@ -17,6 +17,10 @@ jobs:
   build-and-deploy-ios-signed:
     runs-on: macos-latest
     timeout-minutes: 30
+    env:
+      FASTLANE_USER: ${{ secrets.APPLE_DEVELOPER_EMAIL }}
+      FASTLANE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PASSWORD }}
+      FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     
     steps:
     - name: Checkout code
@@ -178,6 +182,13 @@ jobs:
         # Set additional environment variables
         export FASTLANE_USER="${{ secrets.APPLE_DEVELOPER_EMAIL }}"
         export FASTLANE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
+        export FASTLANE_PASSWORD="${{ secrets.APPLE_DEVELOPER_PASSWORD }}"
+        
+        # Debug environment variables (without showing sensitive data)
+        echo "🔍 Debugging environment variables..."
+        echo "FASTLANE_USER is set: $([ -n "$FASTLANE_USER" ] && echo "YES" || echo "NO")"
+        echo "FASTLANE_TEAM_ID is set: $([ -n "$FASTLANE_TEAM_ID" ] && echo "YES" || echo "NO")"
+        echo "FASTLANE_PASSWORD is set: $([ -n "$FASTLANE_PASSWORD" ] && echo "YES" || echo "NO")"
         
         # Generate certificates
         echo "🔐 Generating certificates with Fastlane..."
@@ -185,7 +196,6 @@ jobs:
         export FASTLANE_DISABLE_COLORS=1
         export FASTLANE_SKIP_UPDATE_CHECK=1
         export FASTLANE_HIDE_CHANGELOG=1
-        export FASTLANE_PASSWORD="${{ secrets.APPLE_DEVELOPER_PASSWORD }}"
         
         # Run fastlane with non-interactive environment
         CI=true fastlane generate_certificates
