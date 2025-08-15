@@ -144,15 +144,29 @@ jobs:
         EOF
         
         # Create API key file for authentication
-        echo '{
-          "key_id": "'${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}'",
-          "issuer_id": "'${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}'",
-          "key": "'${{ secrets.APP_STORE_CONNECT_API_KEY }}'"
-        }' > /tmp/api_key.json
+        echo "🔐 Creating API key file..."
+        
+        # Create JSON file using printf to handle newlines properly
+        printf '{
+          "key_id": "%s",
+          "issuer_id": "%s",
+          "key": "%s"
+        }' "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > /tmp/api_key.json
         
         # Verify JSON is valid
         echo "🔍 Verifying API key JSON format..."
-        cat /tmp/api_key.json | jq . > /dev/null && echo "✅ JSON is valid" || echo "❌ JSON is invalid"
+        if jq . /tmp/api_key.json > /dev/null 2>&1; then
+          echo "✅ JSON is valid"
+        else
+          echo "❌ JSON is invalid, trying alternative approach..."
+          # Try creating with base64 encoding
+          echo '{
+            "key_id": "'${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}'",
+            "issuer_id": "'${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}'",
+            "key": "'$(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" | base64 -w 0)'"
+          }' > /tmp/api_key.json
+          echo "✅ JSON created with base64 encoding"
+        fi
         
         # Create Appfile for configuration
         cat > fastlane/Appfile << 'EOF'
