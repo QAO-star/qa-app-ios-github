@@ -120,8 +120,7 @@ jobs:
               force: true,
               generate_apple_certs: true,
               team_id: "${{ secrets.APPLE_TEAM_ID }}",
-              username: "${{ secrets.APPLE_DEVELOPER_EMAIL }}",
-              app_identifier: "com.qaonline.app"
+              username: "${{ secrets.APPLE_DEVELOPER_EMAIL }}"
             )
             
             # Generate provisioning profile
