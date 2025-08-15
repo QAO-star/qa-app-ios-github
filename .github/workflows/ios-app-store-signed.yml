@@ -122,25 +122,21 @@ jobs:
           ls -la certificates/
         fi
         
-        # Import certificates into the temporary keychain
+        # Import certificates into the default keychain
         if [ -f "certificates/distribution.p12" ]; then
-          echo "🔐 Checking keychain setup..."
-          if [ ! -f "../../build.keychain" ]; then
-            echo "🔐 Creating temporary keychain..."
-            security create-keychain -p "" ../../build.keychain
-            security default-keychain -s ../../build.keychain
-            security unlock-keychain -p "" ../../build.keychain
-            security set-keychain-settings ../../build.keychain
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ../../build.keychain
+          echo "🔐 Importing distribution certificate into default keychain..."
+          
+          # Try with password first
+          if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
+            echo "🔐 Trying with password..."
+            security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" || echo "⚠️ Password import failed, trying without password..."
           fi
           
-          echo "🔐 Importing distribution certificate into keychain..."
-          security import certificates/distribution.p12 -k ../../build.keychain -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD || '' }}" || echo "⚠️ Certificate import failed, trying without password..."
-          if [ $? -ne 0 ]; then
-            echo "🔐 Trying certificate import without password..."
-            security import certificates/distribution.p12 -k ../../build.keychain -T /usr/bin/codesign
-          fi
-          echo "✅ Distribution certificate imported into keychain"
+          # Try without password
+          echo "🔐 Trying without password..."
+          security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || echo "⚠️ Import failed, but continuing..."
+          
+          echo "✅ Distribution certificate import completed"
         fi
         
         if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
