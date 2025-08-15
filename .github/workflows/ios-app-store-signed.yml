@@ -2,7 +2,7 @@ name: Build and Deploy iOS to App Store (Signed)
 
 on:
   push:
-    tags: [ 'v*-signed' ]  # Triggers on signed version tags like v1.0.0-signed
+    tags: [ 'release-*' ]  # Triggers on release tags like release-v1.0.0
   workflow_dispatch:  # Allows manual trigger
 
 permissions:
