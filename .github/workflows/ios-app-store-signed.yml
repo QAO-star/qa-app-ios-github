@@ -114,23 +114,24 @@ jobs:
         platform :ios do
           desc "Generate certificates and profiles"
           lane :generate_certificates do
-            # Generate distribution certificate
+            # Generate distribution certificate using API key
             cert(
               development: false,
               force: true,
               generate_apple_certs: true,
               team_id: "${{ secrets.APPLE_TEAM_ID }}",
-              username: "${{ secrets.APPLE_DEVELOPER_EMAIL }}"
+              api_key_path: "/tmp/api_key.json"
             )
             
-            # Generate provisioning profile
+            # Generate provisioning profile using API key
             sigh(
               app_identifier: "com.qaonline.app",
               team_id: "${{ secrets.APPLE_TEAM_ID }}",
               force: true,
               development: false,
               adhoc: false,
-              distribution_type: "app-store"
+              distribution_type: "app-store",
+              api_key_path: "/tmp/api_key.json"
             )
             
             # Export certificates for storage
@@ -140,6 +141,15 @@ jobs:
             )
           end
         end
+        EOF
+        
+        # Create API key file for authentication
+        cat > /tmp/api_key.json << 'EOF'
+        {
+          "key_id": "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}",
+          "issuer_id": "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}",
+          "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}"
+        }
         EOF
         
         # Create Appfile for configuration
