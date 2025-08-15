@@ -68,6 +68,27 @@ jobs:
         echo "Available signing identities:"
         security find-identity -v -p codesigning
     
+    - name: Configure automatic signing
+      run: |
+        # Enable automatic signing for all targets
+        cd ios/App
+        
+        # Update the main app project
+        sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' App.xcodeproj/project.pbxproj
+        
+        # Update the Pods project if it exists
+        if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' Pods/Pods.xcodeproj/project.pbxproj
+        fi
+        
+        echo "✅ Automatic signing configured for all targets"
+    
     - name: Install iOS dependencies
       run: |
         cd ios/App
@@ -75,9 +96,12 @@ jobs:
     
     - name: Configure iOS build settings
       run: |
-        export APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
-        export GITHUB_RUN_NUMBER="${{ github.run_number }}"
-        ./configure-ios-signing.sh
+        cd ios/App
+        # Update bundle identifier and version
+        /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName QA-Online" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" App/Info.plist
     
     - name: Build iOS app
       run: |
