@@ -64,17 +64,12 @@ jobs:
         security unlock-keychain -p "" build.keychain
         security set-keychain-settings build.keychain
         
-        # Import the App Store Connect API key for authentication
-        echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > /tmp/AuthKey.p8
-        security import /tmp/AuthKey.p8 -k build.keychain -P "" -T /usr/bin/codesign -A
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
-        
-        # Show available signing identities
+        # Show available signing identities from system keychain
         echo "Available signing identities:"
-        security find-identity -v -p codesigning build.keychain
+        security find-identity -v -p codesigning
         
-        # Clean up
-        rm /tmp/AuthKey.p8
+        # Set the keychain for the build
+        export CODE_SIGN_KEYCHAIN=build.keychain
     
     - name: Configure automatic signing
       run: |
@@ -136,8 +131,7 @@ jobs:
           CODE_SIGN_IDENTITY="Apple Development" \
           PROVISIONING_PROFILE_SPECIFIER="" \
           CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-          MARKETING_VERSION="1.0.0" \
-          CODE_SIGN_KEYCHAIN="build.keychain"
+          MARKETING_VERSION="1.0.0"
         
         # Export IPA using simple method
         echo "📦 Exporting IPA..."
