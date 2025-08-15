@@ -62,19 +62,45 @@ jobs:
         security unlock-keychain -p "" build.keychain
         security set-keychain-settings build.keychain
         
-        # Import the distribution certificate with correct password
+        # Import the distribution certificate with multiple password attempts
         echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > ios_distribution.p12
         
-        # Try with the secret password first, then fallback to known password
-        if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
-          echo "🔐 Trying with secret password..."
-          security import ios_distribution.p12 -k build.keychain -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign || {
-            echo "⚠️ Secret password failed, trying with known password..."
-            security import ios_distribution.p12 -k build.keychain -P "Geok1800!" -T /usr/bin/codesign
-          }
-        else
-          echo "🔐 Using known password..."
-          security import ios_distribution.p12 -k build.keychain -P "Geok1800!" -T /usr/bin/codesign
+        # Try multiple common passwords
+        echo "🔐 Attempting to import certificate with various passwords..."
+        
+        # List of passwords to try
+        PASSWORDS=("${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" "Geok1800!" "password" "" "123456" "admin")
+        
+        CERT_IMPORTED=false
+        for password in "${PASSWORDS[@]}"; do
+          if [ -n "$password" ]; then
+            echo "🔐 Trying password: ${password:0:3}***"
+            if security import ios_distribution.p12 -k build.keychain -P "$password" -T /usr/bin/codesign 2>/dev/null; then
+              echo "✅ Certificate imported successfully!"
+              CERT_IMPORTED=true
+              break
+            else
+              echo "❌ Password failed"
+            fi
+          else
+            echo "🔐 Trying empty password..."
+            if security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign 2>/dev/null; then
+              echo "✅ Certificate imported successfully (no password)!"
+              CERT_IMPORTED=true
+              break
+            else
+              echo "❌ Empty password failed"
+            fi
+          fi
+        done
+        
+        if [ "$CERT_IMPORTED" = false ]; then
+          echo "❌ Failed to import certificate with any password"
+          echo "🔍 Certificate file info:"
+          file ios_distribution.p12
+          echo "🔍 Certificate file size:"
+          ls -la ios_distribution.p12
+          exit 1
         fi
         
         # Import the provisioning profile
