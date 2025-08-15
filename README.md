@@ -151,4 +151,4 @@ ISC
 
 ---
 
-**Your iOS app is ready for automated builds and App Store distribution! 🚀** 
+**Your iOS app is ready for automated builds and App Store distribution! 🚀**
