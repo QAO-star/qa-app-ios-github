@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>method</key>
-    <string>development</string>
+    <string>app-store</string>
     <key>teamID</key>
     <string>BL7NANM4RM</string>
     <key>signingStyle</key>
-    <string>manual</string>
+    <string>automatic</string>
     <key>signingCertificate</key>
-    <string></string>
+    <string>Apple Distribution</string>
     <key>compileBitcode</key>
     <false/>
     <key>uploadBitcode</key>
