@@ -1,0 +1,213 @@
+name: Build and Deploy iOS to App Store (Signed)
+
+on:
+  push:
+    tags: [ 'v*' ]  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual trigger
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  NODE_VERSION: '18'
+  XCODE_VERSION: '15.2'
+
+jobs:
+  build-and-deploy-ios-signed:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for proper versioning
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        npm install
+        npm install -g @capacitor/cli
+    
+    - name: Setup iOS platform
+      run: |
+        if [ -d "ios" ] && [ ! -f "ios/App/Podfile" ]; then
+          echo "Removing incomplete iOS platform..."
+          rm -rf ios
+        fi
+        if [ ! -d "ios/App/App.xcworkspace" ]; then
+          echo "Adding iOS platform..."
+          npx cap add ios
+        fi
+    
+    - name: Sync Capacitor
+      run: npx cap sync ios
+    
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ env.XCODE_VERSION }}
+    
+    - name: Setup code signing environment
+      run: |
+        # Create a temporary keychain for the build
+        security create-keychain -p "" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "" build.keychain
+        security set-keychain-settings build.keychain
+        
+        # Import the distribution certificate
+        echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > ios_distribution.p12
+        security import ios_distribution.p12 -k build.keychain -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+        
+        # Import the provisioning profile
+        echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -d > QA-Online-App-Store-Profile.mobileprovision
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        
+        # Set keychain settings
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+        
+        # Show available signing identities
+        echo "Available signing identities:"
+        security find-identity -v -p codesigning build.keychain
+        
+        # Clean up sensitive files
+        rm ios_distribution.p12 QA-Online-App-Store-Profile.mobileprovision
+    
+    - name: Configure manual signing with certificates
+      run: |
+        cd ios/App
+        
+        # Update the main app project for manual signing
+        sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
+        
+        # Update the Pods project if it exists
+        if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
+            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
+        fi
+        
+        echo "✅ Manual signing configured for all targets"
+    
+    - name: Install iOS dependencies
+      run: |
+        cd ios/App
+        pod install --repo-update
+    
+    - name: Configure iOS build settings
+      run: |
+        cd ios/App
+        /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName QA-Online" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}" App/Info.plist
+        /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" App/Info.plist
+    
+    - name: Build iOS app with code signing
+      run: |
+        cd ios/App
+        xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
+        
+        xcodebuild archive \
+          -workspace App.xcworkspace \
+          -scheme App \
+          -configuration Release \
+          -destination generic/platform=iOS \
+          -archivePath App.xcarchive \
+          DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
+          CODE_SIGN_STYLE="Manual" \
+          CODE_SIGN_IDENTITY="iPhone Distribution" \
+          PROVISIONING_PROFILE_SPECIFIER="QA-Online-App-Store-Profile" \
+          CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+          MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}" \
+          CODE_SIGN_KEYCHAIN="build.keychain"
+    
+    - name: Export signed IPA
+      run: |
+        cd ios/App
+        xcodebuild -exportArchive \
+          -archivePath App.xcarchive \
+          -exportPath . \
+          -exportOptionsPlist exportOptions.plist \
+          CODE_SIGN_KEYCHAIN="build.keychain"
+    
+    - name: Verify signed IPA file
+      run: |
+        cd ios/App
+        if [ ! -f "App.ipa" ]; then
+          echo "❌ Signed IPA file was not created!"
+          exit 1
+        fi
+        echo "✅ Signed IPA file created successfully"
+        ls -la App.ipa
+        
+        # Verify the IPA is properly signed
+        codesign -dv --verbose=4 App.ipa
+    
+    - name: Setup Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+    
+    - name: Install Fastlane
+      run: |
+        gem install fastlane
+    
+    - name: Upload to App Store Connect
+      run: |
+        fastlane pilot upload \
+          --ipa "ios/App/App.ipa" \
+          --api_key_path <(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}") \
+          --api_key_id "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
+          --issuer_id "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
+          --skip_waiting_for_build_processing
+    
+    - name: Upload signed IPA as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-app-store-signed-ipa-${{ github.run_number }}
+        path: ios/App/App.ipa
+        retention-days: 90
+    
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: QA-Online iOS App ${{ github.ref_name }} (Signed)
+        body: |
+          ## QA-Online iOS App Release ${{ github.ref_name }}
+          
+          ### What's New
+          - ✅ **Signed iOS app build** for App Store distribution
+          - ✅ **Automated upload to App Store Connect**
+          - ✅ **Ready for TestFlight testing**
+          
+          ### Build Information
+          - Build Number: ${{ github.run_number }}
+          - Commit: ${{ github.sha }}
+          - Bundle ID: com.qaonline.app
+          - Signing: ✅ Properly signed with distribution certificate
+          
+          ### Status
+          - **TestFlight**: Available 30 minutes after this release
+          - **App Store**: Ready for review after TestFlight testing
+          
+          ### Download
+          The signed IPA file is available as an artifact in the Actions tab.
+        draft: false
+        prerelease: false
+        files: ios/App/App.ipa
