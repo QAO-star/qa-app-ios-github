@@ -72,30 +72,26 @@ jobs:
         echo "Available signing identities:"
         security find-identity -v -p codesigning
     
-    - name: Configure automatic signing
+    - name: Configure manual signing (no code signing)
       run: |
-        # Enable automatic signing for all targets
+        # Disable code signing for all targets (same as development workflow)
         cd ios/App
         
         # Update the main app project
-        sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' App.xcodeproj/project.pbxproj
         
         # Update the Pods project if it exists
         if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "'${{ secrets.APPLE_TEAM_ID }}'";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_REQUIRED = YES;/CODE_SIGNING_REQUIRED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGNING_ALLOWED = YES;/CODE_SIGNING_ALLOWED = NO;/g' Pods/Pods.xcodeproj/project.pbxproj
         fi
         
-        echo "✅ Automatic signing configured for all targets"
+        echo "✅ Code signing disabled for all targets"
     
     - name: Install iOS dependencies
       run: |
@@ -117,29 +113,27 @@ jobs:
         # Clean previous builds
         xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
         
-        # Build archive with automatic signing
+        # Build archive without code signing (same as development workflow)
         xcodebuild archive \
           -workspace App.xcworkspace \
           -scheme App \
           -configuration Release \
           -destination generic/platform=iOS \
           -archivePath App.xcarchive \
-          -allowProvisioningUpdates \
-          -allowProvisioningDeviceRegistration \
           DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
           PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
-          CODE_SIGN_STYLE="Automatic" \
-          CODE_SIGN_IDENTITY="Apple Distribution" \
+          CODE_SIGN_STYLE="Manual" \
+          CODE_SIGN_IDENTITY="" \
           PROVISIONING_PROFILE_SPECIFIER="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
           CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-          MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}"
+          MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}" \
+          CODE_SIGN_KEYCHAIN="build.keychain"
         
-        # Export IPA for App Store
-        xcodebuild -exportArchive \
-          -archivePath App.xcarchive \
-          -exportPath . \
-          -exportOptionsPlist ../exportOptions.plist \
-          -allowProvisioningUpdates
+        # Extract IPA manually from archive (same as development workflow)
+        echo "📦 Manually extracting IPA from archive..."
+        ../../extract-ipa.sh
     
     - name: Verify IPA file
       run: |
@@ -161,14 +155,12 @@ jobs:
       run: |
         gem install fastlane
     
-    - name: Upload to App Store Connect
+    - name: Skip App Store Connect upload (unsigned build)
       run: |
-        fastlane pilot upload \
-          --ipa "ios/App/App.ipa" \
-          --api_key_path <(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}") \
-          --api_key_id "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-          --issuer_id "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-          --skip_waiting_for_build_processing
+        echo "⚠️ Skipping App Store Connect upload - build is unsigned"
+        echo "📱 IPA file will be available as GitHub release attachment"
+        echo "🔐 To upload to App Store Connect, proper code signing certificates are needed"
+        echo "📦 This release creates a GitHub release with the unsigned IPA for testing"
     
     - name: Upload IPA as artifact
       uses: actions/upload-artifact@v4
