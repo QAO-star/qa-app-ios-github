@@ -4,8 +4,12 @@
 <dict>
     <key>method</key>
     <string>development</string>
+    <key>teamID</key>
+    <string>BL7NANM4RM</string>
     <key>signingStyle</key>
     <string>manual</string>
+    <key>signingCertificate</key>
+    <string></string>
     <key>compileBitcode</key>
     <false/>
     <key>uploadBitcode</key>
