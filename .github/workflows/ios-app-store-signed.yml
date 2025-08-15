@@ -105,12 +105,19 @@ jobs:
           ls -la ios_distribution.p12
           echo "🔍 Certificate file content (first 100 chars):"
           head -c 100 ios_distribution.p12 | xxd
-          echo "🔍 Attempting to recreate P12 without password..."
           
-          # Try to create a new P12 without password as fallback
-          echo "⚠️ Certificate import failed. This might be due to P12 format issues."
-          echo "💡 Consider recreating the P12 file without a password on your Mac:"
+          echo ""
+          echo "⚠️ Certificate import failed. The P12 file exists but none of the passwords work."
+          echo ""
+          echo "🔧 SOLUTION: You need to recreate the P12 certificate file."
+          echo ""
+          echo "📋 OPTIONS:"
+          echo "1. Run the helper script: ./recreate-p12-certificate.sh"
+          echo "2. Or manually recreate on your Mac:"
           echo "   openssl pkcs12 -export -out ios_distribution.p12 -inkey ios_distribution.key -in ios_distribution.cer -nodes"
+          echo ""
+          echo "3. Then update GitHub secrets and create a new tag."
+          echo ""
           exit 1
         fi
         
