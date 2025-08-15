@@ -57,13 +57,20 @@ jobs:
     - name: Setup code signing environment
       run: |
         # Create a temporary keychain for the build
-        security create-keychain -p "" build.keychain
-        security default-keychain -s build.keychain
-        security unlock-keychain -p "" build.keychain
-        security set-keychain-settings build.keychain
+        echo "🔐 Creating temporary keychain..."
+        security create-keychain -p "" build.keychain || true
+        security default-keychain -s build.keychain || true
+        security unlock-keychain -p "" build.keychain || true
+        security set-keychain-settings build.keychain || true
         
         # Set keychain settings
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+        echo "🔐 Configuring keychain settings..."
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain || true
+        
+        # Verify keychain is working
+        echo "🔐 Verifying keychain setup..."
+        security list-keychains
+        security show-keychain-info build.keychain || true
         
         echo "🔐 Setting up automatic certificate generation..."
         echo "📱 This will create certificates automatically on the GitHub runner"
@@ -119,6 +126,7 @@ jobs:
         EOF
         
         # Generate certificates
+        echo "🔐 Generating certificates with Fastlane..."
         fastlane generate_certificates
         
         # Store certificates for later use
@@ -138,6 +146,12 @@ jobs:
           
           # Show what we have
           ls -la certificates/
+        else
+          echo "⚠️ No certificates directory found. Trying alternative approach..."
+          
+          # Try to find certificates in default locations
+          find ~/Library/MobileDevice -name "*.mobileprovision" 2>/dev/null || true
+          find ~/Library/Developer/Xcode -name "*.p12" 2>/dev/null || true
         fi
     
     - name: Configure manual signing with certificates
