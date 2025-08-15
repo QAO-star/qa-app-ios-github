@@ -144,13 +144,15 @@ jobs:
         EOF
         
         # Create API key file for authentication
-        cat > /tmp/api_key.json << 'EOF'
-        {
-          "key_id": "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}",
-          "issuer_id": "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}",
-          "key": "${{ secrets.APP_STORE_CONNECT_API_KEY }}"
-        }
-        EOF
+        echo '{
+          "key_id": "'${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}'",
+          "issuer_id": "'${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}'",
+          "key": "'${{ secrets.APP_STORE_CONNECT_API_KEY }}'"
+        }' > /tmp/api_key.json
+        
+        # Verify JSON is valid
+        echo "🔍 Verifying API key JSON format..."
+        cat /tmp/api_key.json | jq . > /dev/null && echo "✅ JSON is valid" || echo "❌ JSON is invalid"
         
         # Create Appfile for configuration
         cat > fastlane/Appfile << 'EOF'
