@@ -151,12 +151,17 @@ jobs:
         team_id("${{ secrets.APPLE_TEAM_ID }}") # Developer Portal Team ID
         EOF
         
+        # Set additional environment variables
+        export FASTLANE_USER="${{ secrets.APPLE_DEVELOPER_EMAIL }}"
+        export FASTLANE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
+        
         # Generate certificates
         echo "🔐 Generating certificates with Fastlane..."
         # Set environment variables to make fastlane non-interactive
         export FASTLANE_DISABLE_COLORS=1
         export FASTLANE_SKIP_UPDATE_CHECK=1
         export FASTLANE_HIDE_CHANGELOG=1
+        export FASTLANE_PASSWORD="${{ secrets.APPLE_DEVELOPER_PASSWORD }}"
         
         # Run fastlane with non-interactive environment
         CI=true fastlane generate_certificates
