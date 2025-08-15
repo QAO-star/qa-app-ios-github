@@ -65,35 +65,25 @@ jobs:
         # Import the distribution certificate with multiple password attempts
         echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > ios_distribution.p12
         
-        # Try multiple common passwords with timeout
-        echo "🔐 Attempting to import certificate with various passwords..."
+        # Try to import certificate (expecting no password for fresh setup)
+        echo "🔐 Importing certificate (expecting no password)..."
         
-        # List of passwords to try
-        PASSWORDS=("${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" "Geok1800!" "password" "123456" "admin")
-        
-        CERT_IMPORTED=false
-        for password in "${PASSWORDS[@]}"; do
-          if [ -n "$password" ]; then
-            echo "🔐 Trying password: ${password:0:3}***"
-            # Use timeout to prevent hanging
-            if timeout 10s security import ios_distribution.p12 -k build.keychain -P "$password" -T /usr/bin/codesign 2>/dev/null; then
-              echo "✅ Certificate imported successfully!"
+        # Try without password first (recommended for fresh setup)
+        if timeout 10s security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign 2>/dev/null; then
+          echo "✅ Certificate imported successfully (no password)!"
+          CERT_IMPORTED=true
+        else
+          echo "⚠️ No password failed, trying with secret password..."
+          
+          # Fallback to secret password if provided
+          if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
+            echo "🔐 Trying with secret password..."
+            if timeout 10s security import ios_distribution.p12 -k build.keychain -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign 2>/dev/null; then
+              echo "✅ Certificate imported successfully with secret password!"
               CERT_IMPORTED=true
-              break
             else
-              echo "❌ Password failed"
+              echo "❌ Secret password failed"
             fi
-          fi
-        done
-        
-        # Try empty password separately with timeout
-        if [ "$CERT_IMPORTED" = false ]; then
-          echo "🔐 Trying empty password..."
-          if timeout 10s security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign 2>/dev/null; then
-            echo "✅ Certificate imported successfully (no password)!"
-            CERT_IMPORTED=true
-          else
-            echo "❌ Empty password failed"
           fi
         fi
         

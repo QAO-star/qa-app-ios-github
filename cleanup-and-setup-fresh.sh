@@ -1,0 +1,182 @@
+#!/bin/bash
+
+echo "🧹 COMPLETE CLEANUP & FRESH SETUP"
+echo "=================================="
+echo ""
+
+echo "📋 This script will help you:"
+echo "1. Clean up all existing certificates and profiles"
+echo "2. Create everything fresh from scratch"
+echo "3. Set up GitHub secrets properly"
+echo ""
+
+read -p "Are you ready to start fresh? (y/N): " confirm
+
+if [[ $confirm != [yY] ]]; then
+    echo "❌ Setup cancelled."
+    exit 0
+fi
+
+echo ""
+echo "🔧 STEP 1: CLEANUP EXISTING FILES"
+echo "=================================="
+
+# Remove existing certificate files
+echo "🗑️ Removing existing certificate files..."
+rm -f ios_distribution.p12
+rm -f ios_distribution.cer
+rm -f ios_distribution.key
+rm -f ios_distribution.csr
+rm -f QAOnlineAppStoreProfile.mobileprovision
+rm -f ios_cert_base64.txt
+rm -f provisioning_profile_base64.txt
+
+echo "✅ Cleanup completed!"
+echo ""
+
+echo "🔧 STEP 2: APPLE DEVELOPER SETUP"
+echo "=================================="
+echo ""
+echo "📱 Go to: https://developer.apple.com/account/resources/certificates/list"
+echo ""
+echo "🗑️ DELETE these existing certificates (if any):"
+echo "   - iOS Distribution certificates"
+echo "   - iOS Development certificates"
+echo ""
+echo "📋 DELETE these existing profiles (if any):"
+echo "   - QA-Online-App-Store-Profile"
+echo "   - Any other QA-Online profiles"
+echo ""
+echo "🆔 VERIFY your Team ID: BL7NANM4RM"
+echo "🆔 VERIFY your App ID: com.qaonline.app"
+echo ""
+
+read -p "Press Enter after cleaning up Apple Developer portal..."
+
+echo ""
+echo "🔧 STEP 3: CREATE NEW CERTIFICATE"
+echo "=================================="
+echo ""
+echo "📱 Go to: https://developer.apple.com/account/resources/certificates/add"
+echo ""
+echo "📋 Steps:"
+echo "1. Click 'Add Certificate'"
+echo "2. Select 'iOS Distribution (App Store and Ad Hoc)'"
+echo "3. Click 'Continue'"
+echo "4. Choose 'Upload a certificate signing request'"
+echo "5. Upload the CSR file we'll create next"
+echo "6. Download the .cer file"
+echo ""
+
+echo "🔧 STEP 4: CREATE CSR FILE"
+echo "==========================="
+echo ""
+echo "Run this command on your Mac:"
+echo ""
+echo "openssl genrsa -out ios_distribution.key 2048"
+echo "openssl req -new -key ios_distribution.key -out ios_distribution.csr -subj '/CN=QA-Online iOS Distribution/OU=BL7NANM4RM/O=QA-Online/C=US'"
+echo ""
+echo "This will create:"
+echo "   - ios_distribution.key (private key)"
+echo "   - ios_distribution.csr (certificate signing request)"
+echo ""
+
+read -p "Press Enter after creating the CSR file..."
+
+echo ""
+echo "🔧 STEP 5: CREATE P12 CERTIFICATE"
+echo "=================================="
+echo ""
+echo "After downloading the .cer file from Apple, run:"
+echo ""
+echo "openssl pkcs12 -export -out ios_distribution.p12 -inkey ios_distribution.key -in ios_distribution.cer -nodes"
+echo ""
+echo "This creates a P12 file WITHOUT password (recommended for CI/CD)"
+echo ""
+
+read -p "Press Enter after creating the P12 file..."
+
+echo ""
+echo "🔧 STEP 6: CREATE PROVISIONING PROFILE"
+echo "======================================"
+echo ""
+echo "📱 Go to: https://developer.apple.com/account/resources/profiles/list"
+echo ""
+echo "📋 Steps:"
+echo "1. Click 'Add Profile'"
+echo "2. Select 'App Store'"
+echo "3. Select App ID: com.qaonline.app"
+echo "4. Select the new iOS Distribution certificate"
+echo "5. Name: QA-Online-App-Store-Profile"
+echo "6. Download the .mobileprovision file"
+echo ""
+
+read -p "Press Enter after creating the provisioning profile..."
+
+echo ""
+echo "🔧 STEP 7: PREPARE FILES FOR GITHUB"
+echo "===================================="
+echo ""
+echo "Run these commands on your Mac:"
+echo ""
+echo "# Convert P12 to base64"
+echo "base64 -w 0 ios_distribution.p12 > ios_cert_base64.txt"
+echo ""
+echo "# Convert provisioning profile to base64"
+echo "base64 -w 0 QA-Online-App-Store-Profile.mobileprovision > provisioning_profile_base64.txt"
+echo ""
+echo "# Display the content to copy"
+echo "echo '=== P12 CERTIFICATE ==='"
+echo "cat ios_cert_base64.txt"
+echo "echo '=== PROVISIONING PROFILE ==='"
+echo "cat provisioning_profile_base64.txt"
+echo ""
+
+read -p "Press Enter after preparing the files..."
+
+echo ""
+echo "🔧 STEP 8: UPDATE GITHUB SECRETS"
+echo "================================="
+echo ""
+echo "📱 Go to: https://github.com/QAI-O/qa-app-ios/settings/secrets/actions"
+echo ""
+echo "📋 Update these secrets:"
+echo ""
+echo "1. IOS_DIST_CERTIFICATE"
+echo "   - Content: The base64 content from ios_cert_base64.txt"
+echo ""
+echo "2. IOS_PROVISIONING_PROFILE"
+echo "   - Content: The base64 content from provisioning_profile_base64.txt"
+echo ""
+echo "3. IOS_DIST_CERTIFICATE_PASSWORD"
+echo   - Value: (leave empty or delete this secret)"
+echo ""
+echo "4. Verify these existing secrets:"
+echo "   - APP_STORE_CONNECT_API_KEY"
+echo "   - APP_STORE_CONNECT_API_KEY_ID: ZA7M4DJPV8"
+echo "   - APP_STORE_CONNECT_ISSUER_ID: 6751101564"
+echo "   - APPLE_TEAM_ID: BL7NANM4RM"
+echo ""
+
+read -p "Press Enter after updating GitHub secrets..."
+
+echo ""
+echo "🔧 STEP 9: TEST THE SETUP"
+echo "=========================="
+echo ""
+echo "Create a new tag to test the setup:"
+echo ""
+echo "git tag release-v1.0.8"
+echo "git push origin release-v1.0.8"
+echo ""
+
+echo ""
+echo "🎉 SETUP COMPLETE!"
+echo "=================="
+echo ""
+echo "✅ All certificates and profiles created fresh"
+echo "✅ GitHub secrets updated"
+echo "✅ Ready for automated builds"
+echo ""
+echo "📱 Next: Check the GitHub Actions tab to see the build succeed!"
+echo ""
