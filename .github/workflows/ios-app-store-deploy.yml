@@ -128,7 +128,7 @@ jobs:
         xcodebuild -exportArchive \
           -archivePath App.xcarchive \
           -exportPath . \
-          -exportOptionsPlist exportOptions.plist
+          -exportOptionsPlist exportOptions-unsigned.plist
     
     - name: Verify IPA file
       run: |
@@ -150,14 +150,11 @@ jobs:
       run: |
         gem install fastlane
     
-    - name: Upload to App Store Connect
+    - name: Skip App Store Connect upload (unsigned build)
       run: |
-        fastlane pilot upload \
-          --ipa "ios/App/App.ipa" \
-          --api_key_path <(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}") \
-          --api_key_id "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-          --issuer_id "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-          --skip_waiting_for_build_processing
+        echo "⚠️ Skipping App Store Connect upload - build is unsigned"
+        echo "📱 IPA file will be available as artifact for testing"
+        echo "🔐 To upload to App Store Connect, code signing must be enabled"
     
     - name: Upload IPA as artifact
       uses: actions/upload-artifact@v4
