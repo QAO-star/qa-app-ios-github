@@ -62,9 +62,20 @@ jobs:
         security unlock-keychain -p "" build.keychain
         security set-keychain-settings build.keychain
         
-        # Import the distribution certificate
+        # Import the distribution certificate with correct password
         echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > ios_distribution.p12
-        security import ios_distribution.p12 -k build.keychain -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+        
+        # Try with the secret password first, then fallback to known password
+        if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
+          echo "🔐 Trying with secret password..."
+          security import ios_distribution.p12 -k build.keychain -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign || {
+            echo "⚠️ Secret password failed, trying with known password..."
+            security import ios_distribution.p12 -k build.keychain -P "Geok1800!" -T /usr/bin/codesign
+          }
+        else
+          echo "🔐 Using known password..."
+          security import ios_distribution.p12 -k build.keychain -P "Geok1800!" -T /usr/bin/codesign
+        fi
         
         # Import the provisioning profile
         echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -d > QA-Online-App-Store-Profile.mobileprovision
