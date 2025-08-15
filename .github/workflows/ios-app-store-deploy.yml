@@ -34,12 +34,19 @@ jobs:
         npm install
         npm install -g @capacitor/cli
     
-    - name: Add iOS platform (if not exists)
+    - name: Setup iOS platform
       run: |
+        # Remove existing iOS platform if incomplete
+        if [ -d "ios" ] && [ ! -f "ios/App/Podfile" ]; then
+          echo "Removing incomplete iOS platform..."
+          rm -rf ios
+        fi
+        
+        # Add iOS platform if it doesn't exist
         if [ ! -d "ios/App/App.xcworkspace" ]; then
+          echo "Adding iOS platform..."
           npx cap add ios
         fi
-      continue-on-error: true
     
     - name: Sync Capacitor
       run: npx cap sync ios
