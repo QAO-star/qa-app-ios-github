@@ -150,18 +150,6 @@ jobs:
       run: |
         cd ios/App
         
-        # Import the generated certificates
-        if [ -f "certificates/distribution.p12" ]; then
-          echo "🔐 Importing generated distribution certificate..."
-          security import certificates/distribution.p12 -k ../../build.keychain -T /usr/bin/codesign
-        fi
-        
-        if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
-          echo "📋 Installing generated provisioning profile..."
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-        fi
-        
         # Update the main app project for manual signing
         sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
         sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' App.xcodeproj/project.pbxproj
@@ -178,9 +166,9 @@ jobs:
         
         echo "✅ Manual signing configured for all targets"
         
-        # Show available signing identities
+        # Show available signing identities from default keychain
         echo "Available signing identities:"
-        security find-identity -v -p codesigning ../../build.keychain
+        security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
     
     - name: Install iOS dependencies
       run: |
@@ -212,8 +200,7 @@ jobs:
           CODE_SIGN_IDENTITY="iPhone Distribution" \
           PROVISIONING_PROFILE_SPECIFIER="QA-Online-App-Store-Profile" \
           CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-          MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}" \
-          CODE_SIGN_KEYCHAIN="../../build.keychain"
+          MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}"
     
     - name: Export signed IPA
       run: |
@@ -221,8 +208,7 @@ jobs:
         xcodebuild -exportArchive \
           -archivePath App.xcarchive \
           -exportPath . \
-          -exportOptionsPlist exportOptions.plist \
-          CODE_SIGN_KEYCHAIN="build.keychain"
+          -exportOptionsPlist exportOptions.plist
     
     - name: Verify signed IPA file
       run: |
