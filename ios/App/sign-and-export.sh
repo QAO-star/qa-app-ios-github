@@ -143,23 +143,9 @@ echo "   3. Upload the signed IPA to App Store Connect"
 echo ""
 echo "🎯 The app builds successfully and is ready for manual signing!"
 
-# Create signed IPA file
-echo "📱 Creating signed IPA file..."
-zip -r App.ipa Payload/
-
-# Clean up
-rm -rf Payload
-
-echo "✅ Signed IPA created successfully!"
-ls -la App.ipa
-
-# Verify the signing
-echo "🔍 Verifying app signature..."
-codesign -dv --verbose=4 App.ipa
-
 echo ""
-echo "🎉 Successfully created signed IPA for App Store distribution!"
-echo "📱 The IPA is properly signed and ready for upload to App Store Connect"
+echo "🎉 Successfully created unsigned IPA!"
+echo "📱 The IPA is ready for manual signing and upload to App Store Connect"
 
 # Final verification
 if [ ! -f "App.ipa" ]; then
