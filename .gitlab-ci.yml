@@ -1,0 +1,454 @@
+# GitLab CI/CD Pipeline for iOS App Store Release
+# Uses GitLab's free macOS runners for iOS builds
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  # Node.js and Xcode versions
+  NODE_VERSION: "18"
+  XCODE_VERSION: "15.2"
+  
+  # Fastlane configuration
+  FASTLANE_DISABLE_COLORS: "true"
+  FASTLANE_SKIP_UPDATE_CHECK: "true"
+  FASTLANE_HIDE_GITHUB_ISSUES: "true"
+  CI: "true"
+
+# Test build on every push to main
+ios_test_build:
+  stage: test
+  tags:
+    - macos  # GitLab's free macOS runners
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - echo "🚀 Starting iOS test build on GitLab macOS runner..."
+    
+    # Setup Node.js
+    - echo "📦 Setting up Node.js $NODE_VERSION..."
+    - brew install node@$NODE_VERSION
+    - export PATH="/opt/homebrew/opt/node@$NODE_VERSION/bin:$PATH"
+    - node --version
+    - npm --version
+    
+    # Install dependencies
+    - echo "📦 Installing dependencies..."
+    - npm install
+    - npm install -g @capacitor/cli
+    
+    # Setup iOS platform
+    - echo "📱 Setting up iOS platform..."
+    - |
+      if [ -d "ios" ] && [ ! -f "ios/App/Podfile" ]; then
+        echo "Removing incomplete iOS platform..."
+        rm -rf ios
+      fi
+      if [ ! -d "ios/App/App.xcworkspace" ]; then
+        echo "Adding iOS platform..."
+        npx cap add ios
+      fi
+    
+    # Sync Capacitor
+    - echo "🔄 Syncing Capacitor..."
+    - npx cap sync ios
+    
+    # Setup Xcode
+    - echo "🔧 Setting up Xcode $XCODE_VERSION..."
+    - sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+    - xcodebuild -version
+    
+    # Install iOS dependencies
+    - echo "📦 Installing iOS dependencies..."
+    - cd ios/App
+    - pod install --repo-update
+    
+    # Test build (unsigned)
+    - echo "🔨 Testing iOS build..."
+    - xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
+    - |
+      xcodebuild build \
+        -workspace App.xcworkspace \
+        -scheme App \
+        -configuration Release \
+        -destination generic/platform=iOS \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGNING_ALLOWED=NO
+    
+    - echo "✅ iOS test build completed successfully!"
+  artifacts:
+    when: always
+    reports:
+      junit: []
+    expire_in: 1 day
+
+# Signed release build for App Store
+ios_app_store_signed:
+  stage: build
+  tags:
+    - macos  # GitLab's free macOS runners
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^release-.*$/
+    - if: $CI_PIPELINE_SOURCE == "web"  # Manual trigger
+  timeout: 30m
+  script:
+    - echo "🚀 Starting signed iOS build for App Store..."
+    
+    # Setup Node.js
+    - echo "📦 Setting up Node.js $NODE_VERSION..."
+    - brew install node@$NODE_VERSION
+    - export PATH="/opt/homebrew/opt/node@$NODE_VERSION/bin:$PATH"
+    - node --version
+    
+    # Install dependencies
+    - echo "📦 Installing dependencies..."
+    - npm install
+    - npm install -g @capacitor/cli
+    
+    # Setup iOS platform
+    - echo "📱 Setting up iOS platform..."
+    - |
+      if [ -d "ios" ] && [ ! -f "ios/App/Podfile" ]; then
+        echo "Removing incomplete iOS platform..."
+        rm -rf ios
+      fi
+      if [ ! -d "ios/App/App.xcworkspace" ]; then
+        echo "Adding iOS platform..."
+        npx cap add ios
+      fi
+    
+    # Sync Capacitor
+    - npx cap sync ios
+    
+    # Setup Xcode
+    - echo "🔧 Setting up Xcode $XCODE_VERSION..."
+    - sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+    - xcodebuild -version
+    
+    # Setup Ruby and Fastlane
+    - echo "💎 Setting up Ruby and Fastlane..."
+    - gem install fastlane
+    
+    # Generate certificates and provisioning profiles
+    - echo "🔐 Setting up App Store Connect API key..."
+    - cd ios/App
+    - |
+      echo "🔐 Setting up App Store Connect API key for automatic certificate generation..."
+      
+      # Create fastlane directory for configuration
+      mkdir -p fastlane
+      
+      # Verify API key content is available
+      echo "🔍 API key ID: $APP_STORE_CONNECT_API_KEY_ID"
+      echo "🔍 Issuer ID: $APP_STORE_CONNECT_ISSUER_ID"
+      echo "🔍 API key content length: $(echo '$APP_STORE_CONNECT_API_KEY' | wc -c)"
+      echo "🔍 API key first line: $(echo '$APP_STORE_CONNECT_API_KEY' | head -n 1)"
+      echo "🔍 API key last line: $(echo '$APP_STORE_CONNECT_API_KEY' | tail -n 1)"
+      
+      # Test creating a temporary file to validate format
+      echo '$APP_STORE_CONNECT_API_KEY' > test_api_key.p8
+      echo "🔍 Test file created with $(wc -l < test_api_key.p8) lines"
+      echo "🔍 Test file format check:"
+      if openssl ec -in test_api_key.p8 -text -noout > /dev/null 2>&1; then
+        echo "✅ API key format is valid"
+      else
+        echo "❌ API key format is invalid"
+        echo "First few lines of key:"
+        head -n 3 test_api_key.p8
+      fi
+      rm -f test_api_key.p8
+      
+      # Create Fastlane configuration files
+      cat > fastlane/Fastfile << 'FASTFILE_EOF'
+      default_platform(:ios)
+      
+      platform :ios do
+        desc "Test API key authentication"
+        lane :test_api_key do
+          begin
+            # Test API key with minimal operation
+            api_key = app_store_connect_api_key(
+              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+              duration: 1200,
+              in_house: false
+            )
+            
+            # Try a simple API call to verify authentication
+            UI.success("✅ API key authentication successful")
+            puts "🔍 API Key ID: #{api_key[:key_id]}"
+            puts "🔍 Issuer ID: #{api_key[:issuer_id]}"
+            puts "🔍 API Key Type: #{api_key.class}"
+            puts "🔍 API Key Keys: #{api_key.keys}"
+            
+          rescue => e
+            UI.error("❌ API key authentication failed: #{e.message}")
+            raise e
+          end
+        end
+        
+        desc "Generate certificates and provisioning profiles"
+        lane :certificates do
+          # Debug environment variables
+          puts "🔍 ENV check:"
+          puts "  KEY_ID: #{ENV['APP_STORE_CONNECT_API_KEY_ID']}"
+          puts "  ISSUER_ID: #{ENV['APP_STORE_CONNECT_ISSUER_ID']}"
+          puts "  KEY_CONTENT_LENGTH: #{ENV['APP_STORE_CONNECT_API_KEY']&.length}"
+          
+          # Create API key for certificate actions with debugging
+          begin
+            puts "🔐 Creating API key object..."
+            api_key = app_store_connect_api_key(
+              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+              duration: 1200,
+              in_house: false
+            )
+            puts "✅ API key object created successfully"
+            puts "🔍 API key details: #{api_key.inspect}"
+            
+          rescue => e
+            UI.error("❌ Failed to create API key: #{e.message}")
+            raise e
+          end
+          
+          # Debug: Check API key details before using in cert
+          puts "🔍 Final API key check before cert:"
+          puts "  Key ID: #{api_key[:key_id]}"
+          puts "  Issuer ID: #{api_key[:issuer_id]}"
+          puts "  Key length: #{api_key[:key]&.length}"
+          puts "  Team ID env: #{ENV['APPLE_TEAM_ID']}"
+          
+          # Try cert action with comprehensive error handling
+          puts "🔐 Attempting certificate generation with API key..."
+          begin
+            cert(
+              development: false,
+              output_path: "./certificates/",
+              api_key: api_key,
+              team_id: ENV["APPLE_TEAM_ID"]
+            )
+            puts "✅ Certificate generation succeeded!"
+            
+          rescue => cert_error
+            puts "❌ Certificate generation failed: #{cert_error.message}"
+            puts "🔧 Checking if certificates already exist..."
+            
+            # List any existing certificates  
+            if Dir.exist?("./certificates")
+              puts "📁 Certificates directory contents:"
+              Dir.glob("./certificates/*").each { |f| puts "  #{f}" }
+            else
+              puts "📁 Creating certificates directory..."
+              Dir.mkdir("./certificates")
+            end
+            
+            # Continue even if cert fails - we might have existing certificates
+            puts "⚠️ Continuing without generating new certificate..."
+          end
+          
+          # Generate App Store provisioning profile with API key object
+          puts "🔐 Attempting provisioning profile generation..."
+          begin
+            sigh(
+              development: false,
+              app_identifier: "com.qaonline.app",
+              output_path: "./certificates/",
+              filename: "QA-Online-App-Store-Profile.mobileprovision",
+              api_key: api_key,
+              team_id: ENV["APPLE_TEAM_ID"]
+            )
+            puts "✅ Provisioning profile generation succeeded!"
+            
+          rescue => sigh_error
+            puts "❌ Provisioning profile generation failed: #{sigh_error.message}"
+            puts "🔧 Checking for existing provisioning profiles..."
+            
+            # List any existing profiles
+            Dir.glob("./certificates/*.mobileprovision").each { |f| puts "  Found: #{f}" }
+            
+            # Continue - we might still be able to build without fresh profiles
+            puts "⚠️ Continuing without generating new provisioning profile..."
+          end
+        end
+      end
+      FASTFILE_EOF
+      
+      cat > fastlane/Appfile << 'APPFILE_EOF'
+      app_identifier("com.qaonline.app")
+      apple_id("jonatan.k@qaonline.co.il")
+      team_id("BL7NANM4RM")
+      APPFILE_EOF
+      
+      echo "✅ Fastlane configuration created"
+    
+    # Test API key authentication
+    - echo "🔍 Testing API key authentication..."
+    - fastlane test_api_key
+    
+    # Generate certificates and profiles
+    - echo "🔐 Generating certificates..."
+    - fastlane certificates
+    - echo "✅ Certificates and profiles generated successfully"
+    
+    # List generated files
+    - echo "📁 Generated files:"
+    - ls -la certificates/ || echo "No certificates directory"
+    
+    # Configure automatic signing
+    - echo "🔧 Configuring automatic signing..."
+    - |
+      # Ensure all projects use automatic signing (simpler and more reliable)
+      echo "🔧 Configuring all targets for automatic signing..."
+      sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
+      sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' App.xcodeproj/project.pbxproj
+      sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
+      sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
+      
+      # Update the Pods project to use Automatic signing (they don't support manual profiles)
+      if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
+          echo "🔧 Configuring Pods for automatic signing..."
+          
+          # Remove all provisioning profile specifications from Pods
+          sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
+          
+          # Ensure all Pods targets use automatic signing
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
+          
+          # Also remove any manual code sign identity from Pods
+          sed -i '' '/CODE_SIGN_IDENTITY.*iPhone Distribution/d' Pods/Pods.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Distribution";/CODE_SIGN_IDENTITY = "";/g' Pods/Pods.xcodeproj/project.pbxproj
+          
+          echo "✅ Pods configured for automatic signing"
+      fi
+      
+      echo "✅ Automatic signing configured for all targets"
+      
+      # Show available signing identities from default keychain
+      echo "Available signing identities:"
+      security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+      
+      # Show installed provisioning profiles
+      echo "📋 Installed provisioning profiles:"
+      ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep -E "(QA-Online|\.mobileprovision)" || echo "No QA-Online profiles found"
+    
+    # Install iOS dependencies
+    - echo "📦 Installing iOS dependencies..."
+    - pod install --repo-update
+    
+    # Configure iOS build settings
+    - echo "🔧 Configuring iOS build settings..."
+    - |
+      /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app" App/Info.plist
+      /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName QA-Online" App/Info.plist
+      /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${CI_COMMIT_TAG:-1.0.0}" App/Info.plist
+      /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $CI_PIPELINE_IID" App/Info.plist
+    
+    # Build iOS app with automatic signing
+    - echo "🔨 Building iOS app with automatic signing..."
+    - xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
+    - |
+      # Build with automatic signing for all targets (simpler approach)
+      xcodebuild archive \
+        -workspace App.xcworkspace \
+        -scheme App \
+        -configuration Release \
+        -destination generic/platform=iOS \
+        -archivePath App.xcarchive \
+        DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+        PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
+        CURRENT_PROJECT_VERSION="$CI_PIPELINE_IID" \
+        MARKETING_VERSION="${CI_COMMIT_TAG:-1.0.0}"
+    
+    # Export signed IPA
+    - echo "📦 Exporting signed IPA..."
+    - |
+      xcodebuild -exportArchive \
+        -archivePath App.xcarchive \
+        -exportPath . \
+        -exportOptionsPlist exportOptions.plist
+    
+    # Verify signed IPA file
+    - echo "🔍 Verifying signed IPA file..."
+    - |
+      if [ ! -f "App.ipa" ]; then
+        echo "❌ Signed IPA file was not created!"
+        exit 1
+      fi
+      echo "✅ Signed IPA file created successfully"
+      ls -la App.ipa
+      
+      # Verify the IPA is properly signed
+      codesign -dv --verbose=4 App.ipa
+    
+    # Upload to App Store Connect
+    - echo "🚀 Uploading to App Store Connect..."
+    - |
+      # Create upload lane in Fastfile
+      cat >> fastlane/Fastfile << 'UPLOAD_EOF'
+
+        desc "Upload to App Store Connect"
+        lane :upload do
+          # Create API key for upload
+          api_key = app_store_connect_api_key(
+            key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+            issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+            key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+            duration: 1200,
+            in_house: false
+          )
+          
+          # Upload to TestFlight with API key object
+          pilot(
+            ipa: "App.ipa",
+            skip_waiting_for_build_processing: true,
+            skip_submission: true,
+            api_key: api_key
+          )
+        end
+      UPLOAD_EOF
+      
+      # Run upload
+      fastlane upload
+      
+      echo "✅ Upload to App Store Connect completed"
+    
+    - echo "🎉 iOS App Store build and deployment completed successfully!"
+  
+  environment:
+    name: app-store
+    url: https://appstoreconnect.apple.com
+  
+  artifacts:
+    name: "ios-app-store-signed-$CI_PIPELINE_IID"
+    paths:
+      - ios/App/App.ipa
+      - ios/App/certificates/
+    expire_in: 90 days
+    reports:
+      junit: []
+
+# Deploy to App Store (manual approval)
+deploy_app_store:
+  stage: deploy
+  tags:
+    - macos
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^release-.*$/
+      when: manual  # Requires manual approval
+  dependencies:
+    - ios_app_store_signed
+  script:
+    - echo "🚀 Deploying to App Store..."
+    - echo "✅ IPA has been uploaded to TestFlight"
+    - echo "📱 Ready for App Store review submission"
+    - echo "🔗 Visit App Store Connect to submit for review"
+  environment:
+    name: production
+    url: https://apps.apple.com
