@@ -11,9 +11,18 @@ platform :ios do
       puts "Key content first line: #{ENV['APP_STORE_CONNECT_API_KEY']&.lines&.first&.strip}"
       puts "Key content last line: #{ENV['APP_STORE_CONNECT_API_KEY']&.lines&.last&.strip}"
       
-      # Skip API key authentication for now - continue with build
-      puts "⚠️ Skipping API key authentication due to format issues"
-      puts "✅ Continuing with build process..."
+      # Test API key authentication
+      api_key = app_store_connect_api_key(
+        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+        key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+        duration: 1200,
+        in_house: false
+      )
+      
+      UI.success("✅ API key authentication successful")
+      puts "🔍 API Key ID: #{api_key[:key_id]}"
+      puts "🔍 Issuer ID: #{api_key[:issuer_id]}"
       
     rescue => e
       UI.error("❌ API key authentication failed: #{e.message}")
@@ -26,11 +35,35 @@ platform :ios do
     begin
       puts "🔐 Attempting certificate generation..."
       
-      # Skip certificate generation for now - use automatic signing
-      puts "⚠️ Skipping certificate generation - using automatic signing"
-      puts "📁 Creating certificates directory..."
+      # Create API key object
+      api_key = app_store_connect_api_key(
+        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+        key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+        duration: 1200,
+        in_house: false
+      )
+      
+      # Create certificates directory
       Dir.mkdir("./certificates") unless Dir.exist?("./certificates")
-      puts "✅ Certificates directory ready"
+      
+      # Generate distribution certificate
+      cert(
+        development: false,
+        output_path: "./certificates/",
+        api_key: api_key
+      )
+      
+      # Generate App Store provisioning profile
+      sigh(
+        development: false,
+        app_identifier: "com.qaonline.app",
+        output_path: "./certificates/",
+        filename: "QA-Online-App-Store-Profile.mobileprovision",
+        api_key: api_key
+      )
+      
+      UI.success("✅ Certificates and profiles generated successfully")
       
     rescue => e
       UI.error("❌ Certificate setup failed: #{e.message}")

@@ -217,33 +217,38 @@ jobs:
               CURRENT_PROJECT_VERSION="$CIRCLE_BUILD_NUM" \
               MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
             
-            # Create export options plist without signing
-            echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptionsNoSigning.plist
-            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptionsNoSigning.plist
-            echo '<plist version="1.0">' >> exportOptionsNoSigning.plist
-            echo '<dict>' >> exportOptionsNoSigning.plist
-            echo '    <key>method</key>' >> exportOptionsNoSigning.plist
-            echo '    <string>ad-hoc</string>' >> exportOptionsNoSigning.plist
-            echo '    <key>signingStyle</key>' >> exportOptionsNoSigning.plist
-            echo '    <string>manual</string>' >> exportOptionsNoSigning.plist
-            echo '    <key>teamID</key>' >> exportOptionsNoSigning.plist
-            echo '    <string>'$APPLE_TEAM_ID'</string>' >> exportOptionsNoSigning.plist
-            echo '    <key>stripSwiftSymbols</key>' >> exportOptionsNoSigning.plist
-            echo '    <true/>' >> exportOptionsNoSigning.plist
-            echo '    <key>uploadBitcode</key>' >> exportOptionsNoSigning.plist
-            echo '    <false/>' >> exportOptionsNoSigning.plist
-            echo '    <key>uploadSymbols</key>' >> exportOptionsNoSigning.plist
-            echo '    <false/>' >> exportOptionsNoSigning.plist
-            echo '</dict>' >> exportOptionsNoSigning.plist
-            echo '</plist>' >> exportOptionsNoSigning.plist
+            # Create export options plist with proper signing
+            echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
+            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
+            echo '<plist version="1.0">' >> exportOptions.plist
+            echo '<dict>' >> exportOptions.plist
+            echo '    <key>method</key>' >> exportOptions.plist
+            echo '    <string>app-store</string>' >> exportOptions.plist
+            echo '    <key>signingStyle</key>' >> exportOptions.plist
+            echo '    <string>manual</string>' >> exportOptions.plist
+            echo '    <key>teamID</key>' >> exportOptions.plist
+            echo '    <string>'$APPLE_TEAM_ID'</string>' >> exportOptions.plist
+            echo '    <key>signingCertificate</key>' >> exportOptions.plist
+            echo '    <string>iPhone Distribution</string>' >> exportOptions.plist
+            echo '    <key>provisioningProfiles</key>' >> exportOptions.plist
+            echo '    <dict>' >> exportOptions.plist
+            echo '        <key>com.qaonline.app</key>' >> exportOptions.plist
+            echo '        <string>QA-Online-App-Store-Profile</string>' >> exportOptions.plist
+            echo '    </dict>' >> exportOptions.plist
+            echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
+            echo '    <true/>' >> exportOptions.plist
+            echo '    <key>uploadBitcode</key>' >> exportOptions.plist
+            echo '    <false/>' >> exportOptions.plist
+            echo '    <key>uploadSymbols</key>' >> exportOptions.plist
+            echo '    <false/>' >> exportOptions.plist
+            echo '</dict>' >> exportOptions.plist
+            echo '</plist>' >> exportOptions.plist
             
-            # Export IPA (without code signing)
+            # Export IPA with proper signing
             xcodebuild -exportArchive \
               -archivePath App.xcarchive \
               -exportPath . \
-              -exportOptionsPlist exportOptionsNoSigning.plist \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO
+              -exportOptionsPlist exportOptions.plist
             
             # Verify IPA
             if [ ! -f "App.ipa" ]; then
