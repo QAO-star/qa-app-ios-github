@@ -217,11 +217,14 @@ jobs:
               CURRENT_PROJECT_VERSION="$CIRCLE_BUILD_NUM" \
               MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
             
-            # Export IPA
+            # Export IPA (without code signing)
             xcodebuild -exportArchive \
               -archivePath App.xcarchive \
               -exportPath . \
-              -exportOptionsPlist exportOptions.plist
+              -exportOptionsPlist exportOptions.plist \
+              -allowProvisioningUpdates \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
             
             # Verify IPA
             if [ ! -f "App.ipa" ]; then
