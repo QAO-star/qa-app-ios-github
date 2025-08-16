@@ -314,9 +314,26 @@ jobs:
               exit 1
             fi
             
-            # Install the P12 certificate with error handling
+            # Install certificates using key and certificate files
+            echo "🔐 Installing certificates from key and certificate files..."
+            
+            # Install the private key first
+            if [ -f "ios_distribution.key" ]; then
+              echo "🔐 Installing private key..."
+              security import ios_distribution.key -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+              echo "✅ Private key installed"
+            fi
+            
+            # Install the certificate
+            if [ -f "ios_distribution.cer" ]; then
+              echo "🔐 Installing certificate..."
+              security import ios_distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+              echo "✅ Certificate installed"
+            fi
+            
+            # Try P12 as backup
             if [ -f "ios_distribution.p12" ]; then
-              echo "🔐 Installing P12 certificate..."
+              echo "🔐 Trying P12 certificate as backup..."
               
               # Try different password combinations
               PASSWORDS=("Geok1800!" "" "password" "123456" "admin" "ios" "apple" "developer")
@@ -329,41 +346,18 @@ jobs:
                   echo "✅ P12 certificate installed successfully with password: ${PASSWORD:-'empty'}"
                   break
                 fi
-                
-                # Try with system keychain
-                if security import ios_distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
-                  echo "✅ P12 certificate installed with system keychain and password: ${PASSWORD:-'empty'}"
-                  break
-                fi
               done
-              
-              # Check if installation was successful
-              if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" >/dev/null; then
-                echo "✅ Certificate installation verified"
-              else
-                echo "⚠️ Certificate installation may have failed"
-                echo "🔍 Checking available certificates..."
-                security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-                
-                # Try to install the CER file if available
-                if [ -f "ios_distribution.cer" ]; then
-                  echo "🔐 Trying to install CER certificate..."
-                  security import ios_distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-                  echo "✅ CER certificate installed"
-                fi
-                
-                # Final check
-                if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
-                  echo "✅ Found signing certificates"
-                else
-                  echo "❌ No signing certificates found"
-                  echo "⚠️ Will proceed with unsigned IPA creation"
-                fi
-              fi
+            fi
+            
+            # Check if installation was successful
+            echo "🔍 Checking available signing identities..."
+            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+            
+            if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
+              echo "✅ Found signing certificates"
             else
-              echo "❌ P12 certificate not found"
-              echo "📥 Please ensure ios_distribution.p12 is in the project root"
-              exit 1
+              echo "❌ No signing certificates found"
+              echo "⚠️ Will proceed with unsigned IPA creation"
             fi
             
             # Show available signing identities
