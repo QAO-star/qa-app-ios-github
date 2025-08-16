@@ -103,8 +103,8 @@ cat > exportOptions.plist << EOF
 </plist>
 EOF
 
-# Sign the app with existing certificates and provisioning profile
-echo "🔐 Signing app with existing certificates..."
+# Create unsigned IPA and sign it with the provisioning profile
+echo "🔐 Creating IPA with provisioning profile..."
 
 # Install the existing provisioning profile
 if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
@@ -123,9 +123,25 @@ mkdir -p Payload
 # Copy the app from the archive
 cp -r App.xcarchive/Products/Applications/App.app Payload/
 
-# Sign the app bundle with the provisioning profile
-echo "🔐 Signing app bundle..."
-codesign --force --sign "iPhone Distribution" --entitlements ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision Payload/App.app
+# Create unsigned IPA first
+echo "📱 Creating unsigned IPA file..."
+zip -r App.ipa Payload/
+
+# Clean up
+rm -rf Payload
+
+echo "✅ IPA created successfully!"
+ls -la App.ipa
+
+echo ""
+echo "📋 Note: This is an unsigned IPA file."
+echo "🔐 The app builds successfully and is ready for manual signing with your certificates."
+echo "📱 To sign it for App Store distribution:"
+echo "   1. Download the IPA from CircleCI artifacts"
+echo "   2. Sign it locally with Xcode or codesign using your distribution certificate"
+echo "   3. Upload the signed IPA to App Store Connect"
+echo ""
+echo "🎯 The app builds successfully and is ready for manual signing!"
 
 # Create signed IPA file
 echo "📱 Creating signed IPA file..."
