@@ -253,6 +253,104 @@ jobs:
           path: ios/App/certificates/
           destination: certificates
 
+  # Sign existing IPA - separate pipeline for signing only
+  sign_existing_ipa:
+    executor: macos
+    steps:
+      - checkout
+      - setup_xcode
+      
+      - run:
+          name: "Check for unsigned IPA"
+          command: |
+            echo "📥 Looking for unsigned IPA..."
+            
+            # Check if we have the IPA from a previous build
+            if [ -f "ios/App/App.ipa" ]; then
+              echo "✅ Found App.ipa from previous build"
+              ls -la ios/App/App.ipa
+              cp ios/App/App.ipa App.ipa
+            else
+              echo "❌ App.ipa not found from previous build"
+              echo "📥 Please ensure the unsigned IPA is available"
+              echo "🔗 You can download it from: https://app.circleci.com/pipelines/github/QAI-O/qa-app-ios"
+              echo "📱 Look for the 'ios-app-store-build' artifact"
+              echo ""
+              echo "📋 To use this pipeline:"
+              echo "1. Download the unsigned App.ipa from your previous build"
+              echo "2. Place it in the ios/App/ directory"
+              echo "3. Run this pipeline"
+              exit 1
+            fi
+      
+      - run:
+          name: "Setup certificates and profiles"
+          command: |
+            echo "🔐 Setting up certificates and profiles..."
+            
+            # Install the existing provisioning profile
+            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+              echo "📄 Installing existing provisioning profile..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+              echo "✅ Provisioning profile installed"
+            else
+              echo "❌ Provisioning profile not found"
+              echo "📥 Please ensure QAOnlineAppStoreProfile.mobileprovision is in the project root"
+              exit 1
+            fi
+            
+            # Install the P12 certificate
+            if [ -f "ios_distribution.p12" ]; then
+              echo "🔐 Installing P12 certificate..."
+              security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+              echo "✅ P12 certificate installed"
+            else
+              echo "❌ P12 certificate not found"
+              echo "📥 Please ensure ios_distribution.p12 is in the project root"
+              exit 1
+            fi
+            
+            # Show available signing identities
+            echo "🔍 Available signing identities:"
+            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+      
+      - run:
+          name: "Sign the IPA"
+          command: |
+            echo "🔐 Signing the IPA..."
+            
+            # Extract the IPA
+            echo "📦 Extracting IPA..."
+            unzip -q App.ipa -d Payload/
+            
+            # Sign the app bundle
+            echo "🔐 Signing app bundle..."
+            codesign --force --sign "iPhone Distribution" --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app
+            
+            # Verify the signature
+            echo "🔍 Verifying signature..."
+            codesign -dv --verbose=4 Payload/App.app
+            
+            # Recreate the signed IPA
+            echo "📦 Creating signed IPA..."
+            rm -f App.ipa
+            zip -r App-signed.ipa Payload/
+            
+            # Clean up
+            rm -rf Payload/
+            
+            echo "✅ IPA signed successfully!"
+            ls -la App-signed.ipa
+            echo "📊 File size: $(ls -la App-signed.ipa | awk '{print $5}')"
+            echo ""
+            echo "🎉 Successfully created signed IPA!"
+            echo "📱 The signed IPA is ready for manual upload to App Store Connect"
+      
+      - store_artifacts:
+          path: App-signed.ipa
+          destination: signed-ipa
+
 # Define workflows
 workflows:
   version: 2
@@ -264,5 +362,13 @@ workflows:
           filters:
             tags:
               only: /^release-.*/
+            branches:
+              ignore: /.*/
+  
+  # Sign IPA workflow - manual trigger only
+  sign_ipa_workflow:
+    jobs:
+      - sign_existing_ipa:
+          filters:
             branches:
               ignore: /.*/
