@@ -89,77 +89,33 @@ jobs:
       run: |
         gem install fastlane
         
-    - name: Import existing certificates
+    - name: Setup certificates and profiles
       run: |
         cd ios/App
         
-        echo "🔐 Importing existing certificates from GitHub secrets..."
+        echo "🔐 Setting up certificates and profiles..."
         
         # Create certificates directory
         mkdir -p certificates
         
         # Import distribution certificate from GitHub secret
-        if [ -n "${{ secrets.IOS_DIST_CERTIFICATE }}" ]; then
-          echo "📦 Importing distribution certificate..."
-          echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > certificates/distribution.p12
-          echo "✅ Distribution certificate imported"
-        else
-          echo "⚠️ No distribution certificate found in secrets"
-        fi
+        echo "📦 Importing distribution certificate..."
+        echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > certificates/distribution.p12
         
-        # Import provisioning profile from GitHub secret
-        if [ -n "${{ secrets.IOS_PROVISIONING_PROFILE }}" ]; then
-          echo "📋 Importing provisioning profile..."
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -d > certificates/QA-Online-App-Store-Profile.mobileprovision
-          echo "✅ Provisioning profile imported"
-        else
-          echo "⚠️ No provisioning profile found in secrets"
-        fi
+        # Import provisioning profile from GitHub secret  
+        echo "📋 Importing provisioning profile..."
+        echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -d > certificates/QA-Online-App-Store-Profile.mobileprovision
         
-        # Show what we have
-        if [ -d "certificates" ]; then
-          echo "📁 Certificates directory contents:"
-          ls -la certificates/
-        fi
+        # Install provisioning profile
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
         
-                # Import certificates into the default keychain
-        if [ -f "certificates/distribution.p12" ]; then
-          echo "🔐 Importing distribution certificate into default keychain..."
-          
-          # Try multiple import approaches
-          echo "🔐 Attempt 1: Import with password..."
-          if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
-            security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" && echo "✅ Import with password succeeded" || echo "⚠️ Import with password failed"
-          fi
-          
-          echo "🔐 Attempt 2: Import without password..."
-          security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign && echo "✅ Import without password succeeded" || echo "⚠️ Import without password failed"
-          
-          echo "🔐 Attempt 3: Import to system keychain..."
-          security import certificates/distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign && echo "✅ Import to system keychain succeeded" || echo "⚠️ Import to system keychain failed"
-          
-          echo "✅ Distribution certificate import attempts completed"
-          
-          # Verify certificate import
-          echo "🔍 Verifying certificate import..."
-          echo "Checking login keychain:"
-          security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found in login keychain"
-          echo "Checking system keychain:"
-          security find-identity -v -p codesigning /Library/Keychains/System.keychain | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found in system keychain"
-        fi
+        # Import certificate with the correct password
+        security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "Geok1800!"
         
-        if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
-          echo "📋 Installing provisioning profile..."
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          echo "✅ Provisioning profile installed"
-          
-          # List installed profiles
-          echo "📋 Installed provisioning profiles:"
-          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep QA-Online || echo "⚠️ No QA-Online profile found"
-        fi
+        echo "✅ Certificates and profiles setup completed"
     
-    - name: Configure manual signing with certificates
+    - name: Configure manual signing
       run: |
         cd ios/App
         
