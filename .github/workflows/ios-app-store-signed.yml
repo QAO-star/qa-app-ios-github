@@ -73,6 +73,13 @@ jobs:
         # Create API key file for Fastlane
         mkdir -p fastlane
         echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+        chmod 600 fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+        
+        # Verify API key file
+        echo "🔍 API key file created:"
+        ls -la fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+        echo "🔍 First line of API key:"
+        head -n 1 fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
         
         # Create Fastlane configuration files
         cat > fastlane/Fastfile << 'FASTFILE_EOF'
@@ -81,27 +88,29 @@ jobs:
         platform :ios do
           desc "Generate certificates and provisioning profiles"
           lane :certificates do
-            # Use App Store Connect API key
-            app_store_connect_api_key(
+            # Use App Store Connect API key with explicit configuration
+            api_key = app_store_connect_api_key(
               key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
               issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+              key_filepath: File.absolute_path("fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8"),
               duration: 1200,
               in_house: false
             )
             
-            # Generate distribution certificate
+            # Generate distribution certificate with explicit API key
             cert(
               development: false,
-              output_path: "./certificates/"
+              output_path: "./certificates/",
+              api_key: api_key
             )
             
-            # Generate App Store provisioning profile
+            # Generate App Store provisioning profile with explicit API key
             sigh(
               development: false,
               app_identifier: "com.qaonline.app",
               output_path: "./certificates/",
-              filename: "QA-Online-App-Store-Profile.mobileprovision"
+              filename: "QA-Online-App-Store-Profile.mobileprovision",
+              api_key: api_key
             )
           end
         end
@@ -114,6 +123,16 @@ jobs:
         APPFILE_EOF
 
         echo "✅ Fastlane configuration created"
+        
+        # Debug environment variables
+        echo "🔍 Environment variables check:"
+        echo "APP_STORE_CONNECT_API_KEY_ID: ${APP_STORE_CONNECT_API_KEY_ID}"
+        echo "APP_STORE_CONNECT_ISSUER_ID: ${APP_STORE_CONNECT_ISSUER_ID}" 
+        echo "APPLE_TEAM_ID: ${APPLE_TEAM_ID}"
+        
+        # Verify Fastfile contents
+        echo "🔍 Fastfile contents:"
+        cat fastlane/Fastfile
       env:
         APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
         APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -269,20 +288,21 @@ jobs:
 
           desc "Upload to App Store Connect"
           lane :upload do
-            # Use App Store Connect API key
-            app_store_connect_api_key(
+            # Use App Store Connect API key with explicit configuration
+            api_key = app_store_connect_api_key(
               key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
               issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+              key_filepath: File.absolute_path("fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8"),
               duration: 1200,
               in_house: false
             )
             
-            # Upload to TestFlight
+            # Upload to TestFlight with explicit API key
             pilot(
               ipa: "App.ipa",
               skip_waiting_for_build_processing: true,
-              skip_submission: true
+              skip_submission: true,
+              api_key: api_key
             )
           end
         UPLOAD_EOF
