@@ -112,8 +112,10 @@ jobs:
               
               # Try a simple API call to verify authentication
               UI.success("✅ API key authentication successful")
-              puts "🔍 API Key ID: #{api_key.key_id}"
-              puts "🔍 Issuer ID: #{api_key.issuer_id}"
+              puts "🔍 API Key ID: #{api_key[:key_id]}"
+              puts "🔍 Issuer ID: #{api_key[:issuer_id]}"
+              puts "🔍 API Key Type: #{api_key.class}"
+              puts "🔍 API Key Keys: #{api_key.keys}"
               
             rescue => e
               UI.error("❌ API key authentication failed: #{e.message}")
