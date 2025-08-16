@@ -411,21 +411,29 @@ jobs:
             # Ensure provisioning profile is embedded
             cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
             
-            # Try simple codesign without complex options
-            echo "🔐 Attempting simple codesign..."
-            if codesign --force --sign "iPhone Distribution" Payload/App.app 2>/dev/null; then
-              echo "✅ Successfully signed with simple approach"
+            # Try codesign with the actual certificate hash
+            echo "🔐 Attempting codesign with certificate hash: $CERT_HASH"
+            if codesign --force --sign "$CERT_HASH" Payload/App.app 2>/dev/null; then
+              echo "✅ Successfully signed with certificate hash"
             else
-              echo "⚠️ Simple signing failed, creating unsigned IPA..."
-              echo "📦 Creating unsigned IPA for manual signing..."
-              rm -f App.ipa
-              zip -r App-unsigned.ipa Payload/
-              rm -rf Payload/
-              echo "📦 Created unsigned IPA: App-unsigned.ipa"
-              echo "📱 Manual signing required with:"
-              echo "   codesign --force --sign 'A0857A1D4EAED0FD201A7CAC372F70107B7EC631' App-unsigned.ipa"
-              echo "⚠️ Proceeding with unsigned IPA for upload..."
-              exit 0
+              echo "⚠️ Certificate hash signing failed, trying with identity name..."
+              # Try with the full identity name
+              IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+              echo "🔐 Trying with identity name: $IDENTITY_NAME"
+              if codesign --force --sign "$IDENTITY_NAME" Payload/App.app 2>/dev/null; then
+                echo "✅ Successfully signed with identity name"
+              else
+                echo "⚠️ All signing attempts failed, creating unsigned IPA..."
+                echo "📦 Creating unsigned IPA for manual signing..."
+                rm -f App.ipa
+                zip -r App-unsigned.ipa Payload/
+                rm -rf Payload/
+                echo "📦 Created unsigned IPA: App-unsigned.ipa"
+                echo "📱 Manual signing required with:"
+                echo "   codesign --force --sign '$CERT_HASH' App-unsigned.ipa"
+                echo "⚠️ Proceeding with unsigned IPA for upload..."
+                exit 0
+              fi
             fi
             
             # Create signed IPA
