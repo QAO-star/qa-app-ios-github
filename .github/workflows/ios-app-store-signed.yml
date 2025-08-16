@@ -313,13 +313,14 @@ jobs:
         FASTLANE_HIDE_GITHUB_ISSUES: true
         CI: true
     
-    - name: Configure manual signing
+    - name: Configure automatic signing
       run: |
         cd ios/App
         
-        # Update the main app project for manual signing
-        sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
-        sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' App.xcodeproj/project.pbxproj
+        # Ensure all projects use automatic signing (simpler and more reliable)
+        echo "🔧 Configuring all targets for automatic signing..."
+        sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
+        sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' App.xcodeproj/project.pbxproj
         sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
         sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
         
@@ -330,14 +331,18 @@ jobs:
             # Remove all provisioning profile specifications from Pods
             sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
             
-            # Set all Pods targets to automatic signing
+            # Ensure all Pods targets use automatic signing
             sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
             sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
+            
+            # Also remove any manual code sign identity from Pods
+            sed -i '' '/CODE_SIGN_IDENTITY.*iPhone Distribution/d' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Distribution";/CODE_SIGN_IDENTITY = "";/g' Pods/Pods.xcodeproj/project.pbxproj
             
             echo "✅ Pods configured for automatic signing"
         fi
         
-        echo "✅ Manual signing configured for all targets"
+        echo "✅ Automatic signing configured for all targets"
         
         # Show available signing identities from default keychain
         echo "Available signing identities:"
@@ -365,6 +370,7 @@ jobs:
         cd ios/App
         xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
         
+        # Build with automatic signing for all targets (simpler approach)
         xcodebuild archive \
           -workspace App.xcworkspace \
           -scheme App \
@@ -373,9 +379,6 @@ jobs:
           -archivePath App.xcarchive \
           DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
           PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
-          CODE_SIGN_STYLE="Manual" \
-          CODE_SIGN_IDENTITY="iPhone Distribution" \
-          PROVISIONING_PROFILE_SPECIFIER="QA-Online-App-Store-Profile" \
           CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
           MARKETING_VERSION="${{ github.ref_name == 'main' && '1.0.0' || github.ref_name }}"
     
