@@ -385,26 +385,46 @@ jobs:
             cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
             
             echo "🔐 Signing with iPhone Distribution identity..."
-            if codesign --force --sign "iPhone Distribution: Jonatan Koren (**********)" --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app 2>/dev/null; then
+            echo "🔍 Running: codesign --force --sign 'iPhone Distribution: Jonatan Koren (**********)' --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app"
+            
+            if codesign --force --sign "iPhone Distribution: Jonatan Koren (**********)" --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app; then
               echo "✅ Successfully signed with 'iPhone Distribution: Jonatan Koren'"
             else
-              echo "⚠️ Specific identity failed, trying generic approach..."
+              echo "⚠️ Specific identity failed, trying without entitlements..."
               
-              # Method 2: Try with generic identity
-              if codesign --force --sign "iPhone Distribution" Payload/App.app 2>/dev/null; then
-                echo "✅ Successfully signed with 'iPhone Distribution'"
+              # Method 2: Try without entitlements
+              if codesign --force --sign "iPhone Distribution: Jonatan Koren (**********)" Payload/App.app; then
+                echo "✅ Successfully signed without entitlements"
               else
-                echo "⚠️ Generic identity failed, trying available identity..."
+                echo "⚠️ Without entitlements failed, trying generic identity..."
                 
-                # Method 3: Try with any available identity
-                AVAILABLE_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
-                
-                if [ -n "$AVAILABLE_IDENTITY" ]; then
-                  echo "🔐 Trying with available identity: $AVAILABLE_IDENTITY"
-                  if codesign --force --sign "$AVAILABLE_IDENTITY" Payload/App.app 2>/dev/null; then
-                    echo "✅ Successfully signed with available identity"
+                # Method 3: Try with generic identity
+                if codesign --force --sign "iPhone Distribution" Payload/App.app; then
+                  echo "✅ Successfully signed with 'iPhone Distribution'"
+                else
+                  echo "⚠️ Generic identity failed, trying available identity..."
+                  
+                  # Method 4: Try with any available identity
+                  AVAILABLE_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
+                  
+                  if [ -n "$AVAILABLE_IDENTITY" ]; then
+                    echo "🔐 Trying with available identity: $AVAILABLE_IDENTITY"
+                    if codesign --force --sign "$AVAILABLE_IDENTITY" Payload/App.app; then
+                      echo "✅ Successfully signed with available identity"
+                    else
+                      echo "❌ All signing attempts failed"
+                      echo "🔧 Creating unsigned IPA for manual signing..."
+                      # Create unsigned IPA as fallback
+                      rm -f App.ipa
+                      zip -r App-unsigned.ipa Payload/
+                      rm -rf Payload/
+                      echo "📦 Created unsigned IPA: App-unsigned.ipa"
+                      echo "📱 You can sign this manually using:"
+                      echo "   codesign --force --sign 'iPhone Distribution: Jonatan Koren (**********)' App-unsigned.ipa"
+                      exit 1
+                    fi
                   else
-                    echo "❌ All signing attempts failed"
+                    echo "❌ No signing certificates found"
                     echo "🔧 Creating unsigned IPA for manual signing..."
                     # Create unsigned IPA as fallback
                     rm -f App.ipa
@@ -412,20 +432,9 @@ jobs:
                     rm -rf Payload/
                     echo "📦 Created unsigned IPA: App-unsigned.ipa"
                     echo "📱 You can sign this manually using:"
-                    echo "   codesign --force --sign 'iPhone Distribution: Jonatan Koren (**********)' App-unsigned.ipa"
+                    echo "   codesign --force --sign 'YOUR_CERTIFICATE_NAME' App-unsigned.ipa"
                     exit 1
                   fi
-                else
-                  echo "❌ No signing certificates found"
-                  echo "🔧 Creating unsigned IPA for manual signing..."
-                  # Create unsigned IPA as fallback
-                  rm -f App.ipa
-                  zip -r App-unsigned.ipa Payload/
-                  rm -rf Payload/
-                  echo "📦 Created unsigned IPA: App-unsigned.ipa"
-                  echo "📱 You can sign this manually using:"
-                  echo "   codesign --force --sign 'YOUR_CERTIFICATE_NAME' App-unsigned.ipa"
-                  exit 1
                 fi
               fi
             fi
