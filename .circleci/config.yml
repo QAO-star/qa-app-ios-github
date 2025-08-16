@@ -100,16 +100,21 @@ commands:
     description: "Setup Fastlane for certificate management"
     steps:
       - run:
-          name: "Setup Fastlane"
+          name: "Install Fastlane"
           command: |
-            echo "💎 Setting up Fastlane..."
+            echo "💎 Installing Fastlane..."
             gem install fastlane
+      
+      - run:
+          name: "Create Fastlane directory"
+          command: |
             cd ios/App
-            
-            # Create fastlane directory
             mkdir -p fastlane
-            
-            # Create Fastfile for certificate management
+      
+      - run:
+          name: "Create Fastfile"
+          command: |
+            cd ios/App
             cat > fastlane/Fastfile << 'FASTFILE_EOF'
             default_platform(:ios)
             
@@ -210,8 +215,11 @@ commands:
               end
             end
             FASTFILE_EOF
-            
-            # Create Appfile
+      
+      - run:
+          name: "Create Appfile"
+          command: |
+            cd ios/App
             cat > fastlane/Appfile << 'APPFILE_EOF'
             app_identifier("com.qaonline.app")
             apple_id("jonatan.k@qaonline.co.il")
