@@ -411,6 +411,12 @@ jobs:
             # Ensure provisioning profile is embedded
             cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
             
+            # Configure keychain access for codesign
+            echo "🔧 Configuring keychain access for codesign..."
+            security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db
+            security default-keychain -s ~/Library/Keychains/login.keychain-db
+            
             # Try codesign with the actual certificate hash
             echo "🔐 Attempting codesign with certificate hash: $CERT_HASH"
             if codesign --force --sign "$CERT_HASH" Payload/App.app 2>/dev/null; then
