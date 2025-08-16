@@ -4,7 +4,7 @@ version: 2.1
 executors:
   macos:
     macos:
-      xcode: "15.2.0"  # Latest stable Xcode version
+      xcode: "14.3.1"  # More stable Xcode version
   node:
     docker:
       - image: cimg/node:18.19
@@ -56,8 +56,22 @@ commands:
           name: "Setup Xcode"
           command: |
             echo "🔧 Setting up Xcode..."
-            xcodebuild -version
+            
+            # Wait for Xcode to be fully installed
+            echo "⏳ Waiting for Xcode installation to complete..."
+            sleep 30
+            
+            # Set Xcode path
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            
+            # Verify Xcode is working
+            xcodebuild -version || {
+              echo "❌ Xcode not ready, trying alternative path..."
+              sudo xcode-select -s /Applications/Xcode-14.3.1.app/Contents/Developer
+              xcodebuild -version
+            }
+            
+            echo "✅ Xcode setup completed"
       
       - run:
           name: "Sign in to Apple Developer Account"
@@ -414,7 +428,23 @@ jobs:
             echo "📊 File size: $(ls -la App-signed.ipa | awk '{print $5}')"
             echo ""
             echo "🎉 Successfully created signed IPA!"
-            echo "📱 The signed IPA is ready for manual upload to App Store Connect"
+            echo "📱 The signed IPA is ready for App Store Connect upload"
+      
+      - run:
+          name: "Upload to App Store Connect"
+          command: |
+            echo "🚀 Uploading signed IPA to App Store Connect..."
+            
+            # Setup Fastlane
+            gem install fastlane
+            
+            # Use existing Fastlane configuration
+            cd ios/App
+            
+            # Upload using existing upload lane
+            fastlane upload
+            
+            echo "✅ Upload process completed!"
       
       - store_artifacts:
           path: App-signed.ipa
