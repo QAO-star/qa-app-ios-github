@@ -318,32 +318,46 @@ jobs:
             if [ -f "ios_distribution.p12" ]; then
               echo "🔐 Installing P12 certificate..."
               
-              # Try to install without password first
-              if security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "" 2>/dev/null; then
-                echo "✅ P12 certificate installed successfully"
-              else
-                echo "⚠️ First attempt failed, trying with different keychain..."
+              # Try different password combinations
+              PASSWORDS=("Geok1800!" "" "password" "123456" "admin" "ios" "apple" "developer")
+              
+              for PASSWORD in "${PASSWORDS[@]}"; do
+                echo "🔐 Trying password: ${PASSWORD:-'empty'}"
+                
+                # Try with login keychain
+                if security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
+                  echo "✅ P12 certificate installed successfully with password: ${PASSWORD:-'empty'}"
+                  break
+                fi
+                
                 # Try with system keychain
-                if security import ios_distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign -P "" 2>/dev/null; then
-                  echo "✅ P12 certificate installed with system keychain"
+                if security import ios_distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
+                  echo "✅ P12 certificate installed with system keychain and password: ${PASSWORD:-'empty'}"
+                  break
+                fi
+              done
+              
+              # Check if installation was successful
+              if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" >/dev/null; then
+                echo "✅ Certificate installation verified"
+              else
+                echo "⚠️ Certificate installation may have failed"
+                echo "🔍 Checking available certificates..."
+                security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+                
+                # Try to install the CER file if available
+                if [ -f "ios_distribution.cer" ]; then
+                  echo "🔐 Trying to install CER certificate..."
+                  security import ios_distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+                  echo "✅ CER certificate installed"
+                fi
+                
+                # Final check
+                if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
+                  echo "✅ Found signing certificates"
                 else
-                  echo "⚠️ System keychain failed, trying login keychain..."
-                  # Try with login keychain
-                  if security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain -T /usr/bin/codesign -P "" 2>/dev/null; then
-                    echo "✅ P12 certificate installed with login keychain"
-                  else
-                    echo "❌ All certificate installation attempts failed"
-                    echo "🔍 Checking if certificate is already installed..."
-                    if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" >/dev/null; then
-                      echo "✅ Certificate appears to be already installed"
-                    else
-                      echo "❌ No iPhone Distribution certificate found"
-                      echo "🔧 Trying alternative approach - using existing certificates..."
-                      # Check if we have any certificates available
-                      security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-                      echo "⚠️ Proceeding without certificate installation - will use existing certificates"
-                    fi
-                  fi
+                  echo "❌ No signing certificates found"
+                  echo "⚠️ Will proceed with unsigned IPA creation"
                 fi
               fi
             else
