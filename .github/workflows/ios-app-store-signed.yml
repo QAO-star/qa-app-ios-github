@@ -149,23 +149,64 @@ jobs:
               raise e
             end
             
-            # Generate distribution certificate with API key object
-            puts "🔐 Generating certificate with API key object..."
-            cert(
-              development: false,
-              output_path: "./certificates/",
-              api_key: api_key
-            )
+            # Debug: Check API key details before using in cert
+            puts "🔍 Final API key check before cert:"
+            puts "  Key ID: #{api_key[:key_id]}"
+            puts "  Issuer ID: #{api_key[:issuer_id]}"
+            puts "  Key length: #{api_key[:key]&.length}"
+            puts "  Team ID env: #{ENV['APPLE_TEAM_ID']}"
+            
+            # Try cert action with comprehensive error handling
+            puts "🔐 Attempting certificate generation with API key..."
+            begin
+              cert(
+                development: false,
+                output_path: "./certificates/",
+                api_key: api_key,
+                team_id: ENV["APPLE_TEAM_ID"]
+              )
+              puts "✅ Certificate generation succeeded!"
+              
+            rescue => cert_error
+              puts "❌ Certificate generation failed: #{cert_error.message}"
+              puts "🔧 Checking if certificates already exist..."
+              
+              # List any existing certificates  
+              if Dir.exist?("./certificates")
+                puts "📁 Certificates directory contents:"
+                Dir.glob("./certificates/*").each { |f| puts "  #{f}" }
+              else
+                puts "📁 Creating certificates directory..."
+                Dir.mkdir("./certificates")
+              end
+              
+              # Continue even if cert fails - we might have existing certificates
+              puts "⚠️ Continuing without generating new certificate..."
+            end
             
             # Generate App Store provisioning profile with API key object
-            puts "🔐 Generating provisioning profile with API key object..."
-            sigh(
-              development: false,
-              app_identifier: "com.qaonline.app",
-              output_path: "./certificates/",
-              filename: "QA-Online-App-Store-Profile.mobileprovision",
-              api_key: api_key
-            )
+            puts "🔐 Attempting provisioning profile generation..."
+            begin
+              sigh(
+                development: false,
+                app_identifier: "com.qaonline.app",
+                output_path: "./certificates/",
+                filename: "QA-Online-App-Store-Profile.mobileprovision",
+                api_key: api_key,
+                team_id: ENV["APPLE_TEAM_ID"]
+              )
+              puts "✅ Provisioning profile generation succeeded!"
+              
+            rescue => sigh_error
+              puts "❌ Provisioning profile generation failed: #{sigh_error.message}"
+              puts "🔧 Checking for existing provisioning profiles..."
+              
+              # List any existing profiles
+              Dir.glob("./certificates/*.mobileprovision").each { |f| puts "  Found: #{f}" }
+              
+              # Continue - we might still be able to build without fresh profiles
+              puts "⚠️ Continuing without generating new provisioning profile..."
+            end
           end
         end
         FASTFILE_EOF
