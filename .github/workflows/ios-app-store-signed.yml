@@ -92,7 +92,7 @@ jobs:
             api_key = app_store_connect_api_key(
               key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
               issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_filepath: File.absolute_path("fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8"),
+              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
               duration: 1200,
               in_house: false
             )
@@ -144,8 +144,25 @@ jobs:
         
         echo "🔐 Generating certificates and provisioning profiles..."
         
+        # Verify API key file exists
+        if [ ! -f "fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8" ]; then
+          echo "❌ Error: API key file not found!"
+          echo "Expected: fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8"
+          echo "Current directory: $(pwd)"
+          echo "Files in fastlane directory:"
+          ls -la fastlane/
+          exit 1
+        fi
+        
+        echo "✅ API key file verified: fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8"
+        
         # Create certificates directory
         mkdir -p certificates
+        
+        # Set environment variables for Fastlane
+        export APP_STORE_CONNECT_API_KEY_ID="${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
+        export APP_STORE_CONNECT_ISSUER_ID="${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
+        export APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
         
         # Run Fastlane to generate certificates
         fastlane certificates
@@ -292,7 +309,7 @@ jobs:
             api_key = app_store_connect_api_key(
               key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
               issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_filepath: File.absolute_path("fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8"),
+              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
               duration: 1200,
               in_house: false
             )
