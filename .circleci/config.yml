@@ -223,9 +223,9 @@ jobs:
             echo '<plist version="1.0">' >> exportOptionsNoSigning.plist
             echo '<dict>' >> exportOptionsNoSigning.plist
             echo '    <key>method</key>' >> exportOptionsNoSigning.plist
-            echo '    <string>development</string>' >> exportOptionsNoSigning.plist
+            echo '    <string>ad-hoc</string>' >> exportOptionsNoSigning.plist
             echo '    <key>signingStyle</key>' >> exportOptionsNoSigning.plist
-            echo '    <string>automatic</string>' >> exportOptionsNoSigning.plist
+            echo '    <string>manual</string>' >> exportOptionsNoSigning.plist
             echo '    <key>teamID</key>' >> exportOptionsNoSigning.plist
             echo '    <string>'$APPLE_TEAM_ID'</string>' >> exportOptionsNoSigning.plist
             echo '    <key>stripSwiftSymbols</key>' >> exportOptionsNoSigning.plist
