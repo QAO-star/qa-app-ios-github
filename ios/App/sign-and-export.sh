@@ -65,8 +65,8 @@ echo "⚙️ Configuring iOS build settings..."
 echo "🔨 Building archive..."
 xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
 
-# Try building with automatic signing first
-echo "🔨 Building with automatic signing..."
+# Build without signing first (this should work)
+echo "🔨 Building without signing..."
 xcodebuild archive \
     -workspace App.xcworkspace \
     -scheme App \
@@ -77,25 +77,8 @@ xcodebuild archive \
     PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
     CURRENT_PROJECT_VERSION="$BUILD_NUM" \
     MARKETING_VERSION="$VERSION" \
-    CODE_SIGN_STYLE="Automatic" \
-    -allowProvisioningUpdates
-
-# If that fails, try without signing
-if [ $? -ne 0 ]; then
-    echo "❌ Automatic signing build failed, trying without signing..."
-    xcodebuild archive \
-        -workspace App.xcworkspace \
-        -scheme App \
-        -configuration Release \
-        -destination generic/platform=iOS \
-        -archivePath App.xcarchive \
-        DEVELOPMENT_TEAM="$TEAM_ID" \
-        PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-        CURRENT_PROJECT_VERSION="$BUILD_NUM" \
-        MARKETING_VERSION="$VERSION" \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO
-fi
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO
 
 # Create automatic signing export options
 echo "📝 Creating automatic signing export options..."
@@ -120,22 +103,60 @@ cat > exportOptions.plist << EOF
 </plist>
 EOF
 
-# Try automatic signing first
-echo "🔐 Attempting automatic signing..."
+# Try development export first (since we have a provisioning profile)
+echo "🔐 Attempting development export..."
+cat > exportOptions-dev.plist << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>development</string>
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <key>teamID</key>
+    <string>$TEAM_ID</string>
+    <key>stripSwiftSymbols</key>
+    <true/>
+    <key>uploadBitcode</key>
+    <false/>
+    <key>uploadSymbols</key>
+    <false/>
+</dict>
+</plist>
+EOF
+
+xcodebuild -exportArchive \
+    -archivePath App.xcarchive \
+    -exportPath . \
+    -exportOptionsPlist exportOptions-dev.plist \
+    -allowProvisioningUpdates
+
+# Check if development export succeeded
+if [ -f "App.ipa" ]; then
+    echo "✅ Development export succeeded!"
+    ls -la App.ipa
+    exit 0
+fi
+
+echo "❌ Development export failed, trying app-store export..."
+
+# Try app-store export with automatic signing
+echo "🔐 Attempting app-store export with automatic signing..."
 xcodebuild -exportArchive \
     -archivePath App.xcarchive \
     -exportPath . \
     -exportOptionsPlist exportOptions.plist \
     -allowProvisioningUpdates
 
-# Check if automatic signing succeeded
+# Check if app-store export succeeded
 if [ -f "App.ipa" ]; then
-    echo "✅ Automatic signing succeeded!"
+    echo "✅ App-store export succeeded!"
     ls -la App.ipa
     exit 0
 fi
 
-echo "❌ Automatic signing failed, trying manual signing..."
+echo "❌ App-store export failed, trying manual signing..."
 
 # Try manual signing if certificates exist
 if [ -f "certificates/distribution.p12" ] && [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
@@ -176,35 +197,8 @@ EOF
         -exportPath . \
         -exportOptionsPlist exportOptions-manual.plist
 else
-    echo "❌ No manual certificates available, trying development export..."
-    
-    # Try development export as last resort
-    cat > exportOptions-dev.plist << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>development</string>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>teamID</key>
-    <string>$TEAM_ID</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <false/>
-</dict>
-</plist>
-EOF
-    
-    xcodebuild -exportArchive \
-        -archivePath App.xcarchive \
-        -exportPath . \
-        -exportOptionsPlist exportOptions-dev.plist \
-        -allowProvisioningUpdates
+    echo "❌ No manual certificates available, export failed"
+    exit 1
 fi
 
 # Final verification
