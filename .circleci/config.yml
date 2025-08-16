@@ -218,24 +218,22 @@ jobs:
               MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
             
             # Create export options plist without signing
-            cat > exportOptionsNoSigning.plist << 'EOF'
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-                <key>method</key>
-                <string>development</string>
-                <key>signingStyle</key>
-                <string>manual</string>
-                <key>stripSwiftSymbols</key>
-                <true/>
-                <key>uploadBitcode</key>
-                <false/>
-                <key>uploadSymbols</key>
-                <false/>
-            </dict>
-            </plist>
-            EOF
+            echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptionsNoSigning.plist
+            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptionsNoSigning.plist
+            echo '<plist version="1.0">' >> exportOptionsNoSigning.plist
+            echo '<dict>' >> exportOptionsNoSigning.plist
+            echo '    <key>method</key>' >> exportOptionsNoSigning.plist
+            echo '    <string>development</string>' >> exportOptionsNoSigning.plist
+            echo '    <key>signingStyle</key>' >> exportOptionsNoSigning.plist
+            echo '    <string>manual</string>' >> exportOptionsNoSigning.plist
+            echo '    <key>stripSwiftSymbols</key>' >> exportOptionsNoSigning.plist
+            echo '    <true/>' >> exportOptionsNoSigning.plist
+            echo '    <key>uploadBitcode</key>' >> exportOptionsNoSigning.plist
+            echo '    <false/>' >> exportOptionsNoSigning.plist
+            echo '    <key>uploadSymbols</key>' >> exportOptionsNoSigning.plist
+            echo '    <false/>' >> exportOptionsNoSigning.plist
+            echo '</dict>' >> exportOptionsNoSigning.plist
+            echo '</plist>' >> exportOptionsNoSigning.plist
             
             # Export IPA (without code signing)
             xcodebuild -exportArchive \
@@ -266,19 +264,7 @@ jobs:
 workflows:
   version: 2
   
-  # Test workflow - runs on every push
-  test:
-    jobs:
-      - test_build:
-          filters:
-            branches:
-              only: main
-      - ios_test_build:
-          filters:
-            branches:
-              only: main
-  
-  # Release workflow - runs on tags
+  # Release workflow - runs on tags only
   release:
     jobs:
       - ios_app_store_build:
