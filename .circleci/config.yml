@@ -7,7 +7,7 @@ executors:
       xcode: "15.2.0"  # Latest stable Xcode version
   node:
     docker:
-      image: cimg/node:18.19
+      - image: cimg/node:18.19
 
 # Define reusable commands
 commands:
