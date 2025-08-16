@@ -125,29 +125,24 @@ jobs:
           
           desc "Generate certificates and provisioning profiles"
           lane :certificates do
-            # Use App Store Connect API key with key content (better for CI/CD)
-            api_key = app_store_connect_api_key(
-              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_content: ENV["APP_STORE_CONNECT_API_KEY"],
-              duration: 1200,
-              in_house: false
-            )
-            
-            # Generate distribution certificate with explicit API key
+            # Generate distribution certificate with API key parameters
             cert(
               development: false,
               output_path: "./certificates/",
-              api_key: api_key
+              api_key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              api_key_issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              api_key_content: ENV["APP_STORE_CONNECT_API_KEY"]
             )
             
-            # Generate App Store provisioning profile with explicit API key
+            # Generate App Store provisioning profile with API key parameters
             sigh(
               development: false,
               app_identifier: "com.qaonline.app",
               output_path: "./certificates/",
               filename: "QA-Online-App-Store-Profile.mobileprovision",
-              api_key: api_key
+              api_key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              api_key_issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              api_key_content: ENV["APP_STORE_CONNECT_API_KEY"]
             )
           end
         end
