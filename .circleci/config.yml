@@ -386,9 +386,22 @@ jobs:
             
             echo "🔐 Signing with certificate hash..."
             
-            # Get the certificate hash
-            CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | cut -d' ' -f2)
-            echo "🔍 Certificate hash: $CERT_HASH"
+            # Get the certificate hash - more robust approach
+            echo "🔍 Available identities:"
+            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+            
+            CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+            echo "🔍 Certificate hash: '$CERT_HASH'"
+            
+            if [ -z "$CERT_HASH" ]; then
+              echo "❌ Could not extract certificate hash"
+              echo "🔧 Creating unsigned IPA for manual signing..."
+              rm -f App.ipa
+              zip -r App-unsigned.ipa Payload/
+              rm -rf Payload/
+              echo "📦 Created unsigned IPA: App-unsigned.ipa"
+              exit 1
+            fi
             
             echo "🔍 Running: codesign --force --sign '$CERT_HASH' --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app"
             
@@ -405,8 +418,15 @@ jobs:
                 
                 # Method 3: Try to fix keychain access
                 echo "🔧 Attempting to fix keychain access..."
-                security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
-                security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db
+                
+                # Try different keychain approaches
+                security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db || echo "⚠️ Could not unlock keychain"
+                
+                # Set keychain to allow codesign access
+                security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db || echo "⚠️ Could not set partition list"
+                
+                # Try to access the keychain with default settings
+                security default-keychain -s ~/Library/Keychains/login.keychain-db
                 
                 if codesign --force --sign "$CERT_HASH" Payload/App.app; then
                   echo "✅ Successfully signed after keychain fix"
