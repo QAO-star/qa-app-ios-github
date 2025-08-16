@@ -24,6 +24,7 @@ You need to add these environment variables in CircleCI:
 | `APP_STORE_CONNECT_API_KEY_ID` | Your API key ID | The key ID from App Store Connect (e.g., `ZA7M4DJPV8`) |
 | `APP_STORE_CONNECT_ISSUER_ID` | Your issuer ID | The issuer ID from App Store Connect (e.g., `57246542-96fe-1a63-e053-0824d011072a`) |
 | `APPLE_TEAM_ID` | Your team ID | Your Apple Developer Team ID (e.g., `BL7NANM4RM`) |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Your app-specific password | App-specific password for jonatan.k@qaonline.co.il (generate at https://appleid.apple.com/account/manage) |
 
 ### 3. Important Notes
 - **Do NOT check "Sensitive"** for `APP_STORE_CONNECT_API_KEY` - it contains newlines

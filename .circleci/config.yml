@@ -59,6 +59,21 @@ commands:
             xcodebuild -version
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
       
+      - run:
+          name: "Sign in to Apple Developer Account"
+          command: |
+            echo "🍎 Signing in to Apple Developer Account..."
+            # Create a temporary keychain for signing
+            security create-keychain -p "temp" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "temp" build.keychain
+            security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
+            
+            # Sign in to Apple Developer account
+            xcrun altool --signin-ios "jonatan.k@qaonline.co.il" --password "$APPLE_APP_SPECIFIC_PASSWORD" --keychain build.keychain || echo "⚠️ Apple ID sign-in failed, continuing..."
+            
+            echo "✅ Xcode setup completed"
+      
   install_ios_dependencies:
     description: "Install iOS dependencies with CocoaPods"
     steps:
