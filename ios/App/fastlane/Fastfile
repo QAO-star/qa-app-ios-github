@@ -115,13 +115,52 @@ platform :ios do
     begin
       puts "📤 Attempting App Store Connect upload..."
       
-      # Skip upload for now - just create the IPA
-      puts "⚠️ Skipping App Store Connect upload for now"
-      puts "✅ IPA file created successfully"
+      # Create API key for upload
+      api_key = app_store_connect_api_key(
+        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+        key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+        duration: 1200,
+        in_house: false
+      )
+      
+      # Upload to TestFlight with API key object
+      pilot(
+        ipa: "../../App-signed.ipa",
+        skip_waiting_for_build_processing: true,
+        skip_submission: true,
+        api_key: api_key
+      )
+      
+      UI.success("✅ Upload to App Store Connect completed!")
       
     rescue => e
       UI.error("❌ Upload failed: #{e.message}")
       puts "⚠️ Continuing without upload..."
+      
+      # Try to upload unsigned IPA as fallback
+      begin
+        puts "📤 Trying to upload unsigned IPA as fallback..."
+        api_key = app_store_connect_api_key(
+          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+          key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+          duration: 1200,
+          in_house: false
+        )
+        
+        pilot(
+          ipa: "../../App-unsigned.ipa",
+          skip_waiting_for_build_processing: true,
+          skip_submission: true,
+          api_key: api_key
+        )
+        
+        UI.success("✅ Unsigned IPA uploaded to App Store Connect!")
+      rescue => e2
+        UI.error("❌ Fallback upload also failed: #{e2.message}")
+        puts "📱 Manual upload required to App Store Connect"
+      end
     end
   end
 end
