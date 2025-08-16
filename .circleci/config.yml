@@ -70,7 +70,7 @@ commands:
             security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
             
             # Sign in to Apple Developer account
-            xcrun altool --signin-ios "jonatan.k@qaonline.co.il" --password "$APPLE_APP_SPECIFIC_PASSWORD" --keychain build.keychain || echo "⚠️ Apple ID sign-in failed, continuing..."
+            xcrun altool --store-password-in-keychain-item "apple-id" -u "jonatan.k@qaonline.co.il" -p "$APPLE_APP_SPECIFIC_PASSWORD" --keychain build.keychain || echo "⚠️ Apple ID sign-in failed, continuing..."
             
             echo "✅ Xcode setup completed"
       
@@ -217,14 +217,31 @@ jobs:
               CURRENT_PROJECT_VERSION="$CIRCLE_BUILD_NUM" \
               MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
             
+            # Create export options plist without signing
+            cat > exportOptionsNoSigning.plist << 'EOF'
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+                <key>method</key>
+                <string>development</string>
+                <key>signingStyle</key>
+                <string>manual</string>
+                <key>stripSwiftSymbols</key>
+                <true/>
+                <key>uploadBitcode</key>
+                <false/>
+                <key>uploadSymbols</key>
+                <false/>
+            </dict>
+            </plist>
+            EOF
+            
             # Export IPA (without code signing)
             xcodebuild -exportArchive \
               -archivePath App.xcarchive \
               -exportPath . \
-              -exportOptionsPlist exportOptions.plist \
-              -allowProvisioningUpdates \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO
+              -exportOptionsPlist exportOptionsNoSigning.plist
             
             # Verify IPA
             if [ ! -f "App.ipa" ]; then
