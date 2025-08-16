@@ -194,10 +194,13 @@ jobs:
             ./test-signing-setup.sh
       
       - run:
-          name: "Generate certificates and profiles"
+          name: "Generate certificates and profiles (optional)"
           command: |
             cd ios/App
-            fastlane certificates
+            echo "🔐 Attempting to generate certificates and profiles..."
+            
+            # Try to generate certificates, but don't fail if it doesn't work
+            fastlane certificates || echo "⚠️ Certificate generation failed, continuing without certificates..."
             
             # Install certificates and profiles if they exist
             if [ -f "certificates/distribution.cer" ]; then
