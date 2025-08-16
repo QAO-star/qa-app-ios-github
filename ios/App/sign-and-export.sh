@@ -103,103 +103,47 @@ cat > exportOptions.plist << EOF
 </plist>
 EOF
 
-# Try development export first (since we have a provisioning profile)
-echo "🔐 Attempting development export..."
-cat > exportOptions-dev.plist << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>development</string>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>teamID</key>
-    <string>$TEAM_ID</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <false/>
-</dict>
-</plist>
-EOF
+# Sign the app with existing certificates and provisioning profile
+echo "🔐 Signing app with existing certificates..."
 
-xcodebuild -exportArchive \
-    -archivePath App.xcarchive \
-    -exportPath . \
-    -exportOptionsPlist exportOptions-dev.plist \
-    -allowProvisioningUpdates
-
-# Check if development export succeeded
-if [ -f "App.ipa" ]; then
-    echo "✅ Development export succeeded!"
-    ls -la App.ipa
-    exit 0
-fi
-
-echo "❌ Development export failed, trying app-store export..."
-
-# Try app-store export with automatic signing
-echo "🔐 Attempting app-store export with automatic signing..."
-xcodebuild -exportArchive \
-    -archivePath App.xcarchive \
-    -exportPath . \
-    -exportOptionsPlist exportOptions.plist \
-    -allowProvisioningUpdates
-
-# Check if app-store export succeeded
-if [ -f "App.ipa" ]; then
-    echo "✅ App-store export succeeded!"
-    ls -la App.ipa
-    exit 0
-fi
-
-echo "❌ App-store export failed, trying manual signing..."
-
-# Try manual signing if certificates exist
-if [ -f "certificates/distribution.p12" ] && [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
-    echo "🔐 Attempting manual signing with existing certificates..."
-    
-    # Create manual export options
-    cat > exportOptions-manual.plist << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>app-store</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>teamID</key>
-    <string>$TEAM_ID</string>
-    <key>signingCertificate</key>
-    <string>iPhone Distribution</string>
-    <key>provisioningProfiles</key>
-    <dict>
-        <key>$BUNDLE_ID</key>
-        <string>QA-Online-App-Store-Profile</string>
-    </dict>
-    <key>stripSwiftSymbols</key>
-    <true/>
-    <key>uploadBitcode</key>
-    <false/>
-    <key>uploadSymbols</key>
-    <false/>
-</dict>
-</plist>
-EOF
-    
-    # Try manual export
-    xcodebuild -exportArchive \
-        -archivePath App.xcarchive \
-        -exportPath . \
-        -exportOptionsPlist exportOptions-manual.plist
+# Install the existing provisioning profile
+if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
+    echo "📄 Installing existing provisioning profile..."
+    mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+    cp ../../QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+    echo "✅ Provisioning profile installed"
 else
-    echo "❌ No manual certificates available, export failed"
+    echo "❌ Provisioning profile not found at ../../QAOnlineAppStoreProfile.mobileprovision"
     exit 1
 fi
+
+# Create Payload directory
+mkdir -p Payload
+
+# Copy the app from the archive
+cp -r App.xcarchive/Products/Applications/App.app Payload/
+
+# Sign the app bundle with the provisioning profile
+echo "🔐 Signing app bundle..."
+codesign --force --sign "iPhone Distribution" --entitlements ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision Payload/App.app
+
+# Create signed IPA file
+echo "📱 Creating signed IPA file..."
+zip -r App.ipa Payload/
+
+# Clean up
+rm -rf Payload
+
+echo "✅ Signed IPA created successfully!"
+ls -la App.ipa
+
+# Verify the signing
+echo "🔍 Verifying app signature..."
+codesign -dv --verbose=4 App.ipa
+
+echo ""
+echo "🎉 Successfully created signed IPA for App Store distribution!"
+echo "📱 The IPA is properly signed and ready for upload to App Store Connect"
 
 # Final verification
 if [ ! -f "App.ipa" ]; then

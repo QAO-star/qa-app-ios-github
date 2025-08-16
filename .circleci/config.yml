@@ -194,34 +194,44 @@ jobs:
             ./test-signing-setup.sh
       
       - run:
-          name: "Generate certificates and profiles (optional)"
+          name: "Setup existing certificates and profiles"
           command: |
             cd ios/App
-            echo "🔐 Attempting to generate certificates and profiles..."
+            echo "🔐 Setting up existing certificates and profiles..."
             
-            # Try to generate certificates, but don't fail if it doesn't work
-            fastlane certificates || echo "⚠️ Certificate generation failed, continuing without certificates..."
+            # Install the existing provisioning profile from root
+            if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
+              echo "📄 Installing existing provisioning profile..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              cp ../../QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+              echo "✅ Provisioning profile installed"
+            else
+              echo "❌ Provisioning profile not found at ../../QAOnlineAppStoreProfile.mobileprovision"
+              exit 1
+            fi
             
-            # Install certificates and profiles if they exist
+            # Try to generate certificates with Fastlane (optional)
+            echo "🔐 Attempting to generate certificates with Fastlane..."
+            fastlane certificates || echo "⚠️ Certificate generation failed, continuing with existing profile..."
+            
+            # Install any generated certificates if they exist
             if [ -f "certificates/distribution.cer" ]; then
-              echo "🔐 Installing distribution certificate..."
+              echo "🔐 Installing generated distribution certificate..."
               security import certificates/distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
             fi
             
             if [ -f "certificates/distribution.p12" ]; then
-              echo "🔐 Installing P12 certificate..."
+              echo "🔐 Installing generated P12 certificate..."
               security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-            fi
-            
-            if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
-              echo "📋 Installing provisioning profile..."
-              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-              cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
             fi
             
             # Show available signing identities
             echo "🔍 Available signing identities:"
             security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+            
+            # Show installed provisioning profiles
+            echo "📋 Installed provisioning profiles:"
+            ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep -E "(QA-Online|\.mobileprovision)" || echo "No QA-Online profiles found"
       - run:
           name: "Build signed iOS app"
           command: |
