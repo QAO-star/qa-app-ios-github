@@ -217,7 +217,7 @@ jobs:
               CURRENT_PROJECT_VERSION="$CIRCLE_BUILD_NUM" \
               MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
             
-            # Create export options plist with proper signing
+            # Create export options plist with automatic signing
             echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
             echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
             echo '<plist version="1.0">' >> exportOptions.plist
@@ -225,22 +225,9 @@ jobs:
             echo '    <key>method</key>' >> exportOptions.plist
             echo '    <string>app-store</string>' >> exportOptions.plist
             echo '    <key>signingStyle</key>' >> exportOptions.plist
-            echo '    <string>manual</string>' >> exportOptions.plist
+            echo '    <string>automatic</string>' >> exportOptions.plist
             echo '    <key>teamID</key>' >> exportOptions.plist
             echo '    <string>'$APPLE_TEAM_ID'</string>' >> exportOptions.plist
-            echo '    <key>signingCertificate</key>' >> exportOptions.plist
-            echo '    <string>iPhone Distribution</string>' >> exportOptions.plist
-            echo '    <key>provisioningProfiles</key>' >> exportOptions.plist
-            echo '    <dict>' >> exportOptions.plist
-            echo '        <key>com.qaonline.app</key>' >> exportOptions.plist
-            echo '        <string>QA-Online-App-Store-Profile</string>' >> exportOptions.plist
-            echo '    </dict>' >> exportOptions.plist
-            echo '    <key>excludeProvisioningProfiles</key>' >> exportOptions.plist
-            echo '    <array>' >> exportOptions.plist
-            echo '        <string>Capacitor.framework</string>' >> exportOptions.plist
-            echo '        <string>Cordova.framework</string>' >> exportOptions.plist
-            echo '        <string>Pods_App.framework</string>' >> exportOptions.plist
-            echo '    </array>' >> exportOptions.plist
             echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
             echo '    <true/>' >> exportOptions.plist
             echo '    <key>uploadBitcode</key>' >> exportOptions.plist
@@ -250,15 +237,8 @@ jobs:
             echo '</dict>' >> exportOptions.plist
             echo '</plist>' >> exportOptions.plist
             
-            # Install the generated provisioning profile
-            if [ -f "./certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
-              echo "📱 Installing provisioning profile..."
-              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
-              cp ./certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-              echo "✅ Provisioning profile installed"
-            else
-              echo "⚠️ No provisioning profile found, continuing..."
-            fi
+            # Note: Using automatic signing, no need to install profiles manually
+            echo "🔧 Using automatic signing for export"
             
             # Export IPA with proper signing
             xcodebuild -exportArchive \
