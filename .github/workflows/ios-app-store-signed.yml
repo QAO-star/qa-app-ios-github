@@ -125,29 +125,51 @@ jobs:
           
           desc "Generate certificates and provisioning profiles"
           lane :certificates do
-            # Create API key for certificate actions
-            api_key = app_store_connect_api_key(
-              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_content: ENV["APP_STORE_CONNECT_API_KEY"],
-              duration: 1200,
-              in_house: false
-            )
+            # Debug environment variables
+            puts "🔍 ENV check:"
+            puts "  KEY_ID: #{ENV['APP_STORE_CONNECT_API_KEY_ID']}"
+            puts "  ISSUER_ID: #{ENV['APP_STORE_CONNECT_ISSUER_ID']}"
+            puts "  KEY_CONTENT_LENGTH: #{ENV['APP_STORE_CONNECT_API_KEY']&.length}"
             
-            # Generate distribution certificate with API key
+            # Create API key for certificate actions with debugging
+            begin
+              puts "🔐 Creating API key object..."
+              api_key = app_store_connect_api_key(
+                key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+                issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+                key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+                duration: 1200,
+                in_house: false
+              )
+              puts "✅ API key object created successfully"
+              puts "🔍 API key details: #{api_key.inspect}"
+              
+            rescue => e
+              UI.error("❌ Failed to create API key: #{e.message}")
+              raise e
+            end
+            
+            # Try alternative: write key to file and use api_key_path
+            puts "🔧 Trying alternative approach with api_key_path..."
+            key_file_path = "./fastlane/AuthKey_#{ENV['APP_STORE_CONNECT_API_KEY_ID']}.p8"
+            puts "📝 Writing API key to: #{key_file_path}"
+            
+            # Generate distribution certificate with file-based API key
             cert(
               development: false,
               output_path: "./certificates/",
-              api_key: api_key
+              api_key_path: key_file_path,
+              api_key_issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"]
             )
             
-            # Generate App Store provisioning profile with API key
+            # Generate App Store provisioning profile with file-based API key
             sigh(
               development: false,
               app_identifier: "com.qaonline.app",
               output_path: "./certificates/",
               filename: "QA-Online-App-Store-Profile.mobileprovision",
-              api_key: api_key
+              api_key_path: key_file_path,
+              api_key_issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"]
             )
           end
         end
@@ -355,21 +377,16 @@ jobs:
 
           desc "Upload to App Store Connect"
           lane :upload do
-            # Use App Store Connect API key with key content (better for CI/CD)
-            api_key = app_store_connect_api_key(
-              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-              key_content: ENV["APP_STORE_CONNECT_API_KEY"],
-              duration: 1200,
-              in_house: false
-            )
+            # Use file-based API key for upload
+            key_file_path = "./fastlane/AuthKey_#{ENV['APP_STORE_CONNECT_API_KEY_ID']}.p8"
             
-            # Upload to TestFlight with explicit API key
+            # Upload to TestFlight with file-based API key
             pilot(
               ipa: "App.ipa",
               skip_waiting_for_build_processing: true,
               skip_submission: true,
-              api_key: api_key
+              api_key_path: key_file_path,
+              api_key_issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"]
             )
           end
         UPLOAD_EOF
