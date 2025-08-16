@@ -248,7 +248,9 @@ jobs:
             xcodebuild -exportArchive \
               -archivePath App.xcarchive \
               -exportPath . \
-              -exportOptionsPlist exportOptionsNoSigning.plist
+              -exportOptionsPlist exportOptionsNoSigning.plist \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO
             
             # Verify IPA
             if [ ! -f "App.ipa" ]; then
