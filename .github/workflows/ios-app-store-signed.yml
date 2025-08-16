@@ -17,10 +17,6 @@ jobs:
   build-and-deploy-ios-signed:
     runs-on: macos-latest
     timeout-minutes: 30
-    env:
-      FASTLANE_USER: jonatan.k@qaonline.co.il
-      FASTLANE_PASSWORD: kvyz-vbth-czju-ysnz
-      FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     
     steps:
     - name: Checkout code
@@ -58,27 +54,6 @@ jobs:
       with:
         xcode-version: ${{ env.XCODE_VERSION }}
     
-    - name: Setup code signing environment
-      run: |
-        # Create a temporary keychain for the build
-        echo "🔐 Creating temporary keychain..."
-        security create-keychain -p "" build.keychain || true
-        security default-keychain -s build.keychain || true
-        security unlock-keychain -p "" build.keychain || true
-        security set-keychain-settings build.keychain || true
-        
-        # Set keychain settings
-        echo "🔐 Configuring keychain settings..."
-        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain || true
-        
-        # Verify keychain is working
-        echo "🔐 Verifying keychain setup..."
-        security list-keychains
-        security show-keychain-info build.keychain || true
-        
-        echo "🔐 Setting up automatic certificate generation..."
-        echo "📱 This will create certificates automatically on the GitHub runner"
-        
     - name: Setup Ruby and Fastlane
       uses: ruby/setup-ruby@v1
       with:
@@ -89,31 +64,93 @@ jobs:
       run: |
         gem install fastlane
         
-    - name: Setup certificates and profiles
+    - name: Setup App Store Connect API key
       run: |
         cd ios/App
         
-        echo "🔐 Setting up certificates and profiles..."
+        echo "🔐 Setting up App Store Connect API key for automatic certificate generation..."
+        
+        # Create API key file for Fastlane
+        mkdir -p fastlane
+        echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
+        
+        # Create Fastlane configuration files
+        cat > fastlane/Fastfile << 'EOF'
+default_platform(:ios)
+
+platform :ios do
+  desc "Generate certificates and provisioning profiles"
+  lane :certificates do
+    # Use App Store Connect API key
+    app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+      duration: 1200,
+      in_house: false
+    )
+    
+    # Generate distribution certificate
+    cert(
+      development: false,
+      output_path: "./certificates/"
+    )
+    
+    # Generate App Store provisioning profile
+    sigh(
+      development: false,
+      app_identifier: "com.qaonline.app",
+      output_path: "./certificates/",
+      filename: "QA-Online-App-Store-Profile.mobileprovision"
+    )
+  end
+end
+EOF
+
+        cat > fastlane/Appfile << 'EOF'
+app_identifier("com.qaonline.app")
+apple_id("jonatan.k@qaonline.co.il")
+team_id("BL7NANM4RM")
+EOF
+
+        echo "✅ Fastlane configuration created"
+      env:
+        APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    
+    - name: Generate certificates and profiles with Fastlane
+      run: |
+        cd ios/App
+        
+        echo "🔐 Generating certificates and provisioning profiles..."
         
         # Create certificates directory
         mkdir -p certificates
         
-        # Import distribution certificate from GitHub secret
-        echo "📦 Importing distribution certificate..."
-        echo "${{ secrets.IOS_DIST_CERTIFICATE }}" | base64 -d > certificates/distribution.p12
+        # Run Fastlane to generate certificates
+        fastlane certificates
         
-        # Import provisioning profile from GitHub secret  
-        echo "📋 Importing provisioning profile..."
-        echo "${{ secrets.IOS_PROVISIONING_PROFILE }}" | base64 -d > certificates/QA-Online-App-Store-Profile.mobileprovision
+        echo "✅ Certificates and profiles generated successfully"
         
-        # Install provisioning profile
+        # List generated files
+        echo "📁 Generated files:"
+        ls -la certificates/
+        
+        # Install the generated provisioning profile
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-        
-        # Import certificate with the correct password
-        security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "Geok1800!"
-        
-        echo "✅ Certificates and profiles setup completed"
+        if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
+          cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          echo "✅ Provisioning profile installed"
+        fi
+      env:
+        APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        FASTLANE_DISABLE_COLORS: true
+        FASTLANE_SKIP_UPDATE_CHECK: true
+        FASTLANE_HIDE_GITHUB_ISSUES: true
+        CI: true
     
     - name: Configure manual signing
       run: |
@@ -198,24 +235,48 @@ jobs:
         # Verify the IPA is properly signed
         codesign -dv --verbose=4 App.ipa
     
-    - name: Setup Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.0'
-        bundler-cache: true
-    
-    - name: Install Fastlane
-      run: |
-        gem install fastlane
+
     
     - name: Upload to App Store Connect
       run: |
-        fastlane pilot upload \
-          --ipa "ios/App/App.ipa" \
-          --api_key_path <(echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}") \
-          --api_key_id "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
-          --issuer_id "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
-          --skip_waiting_for_build_processing
+        cd ios/App
+        
+        echo "🚀 Uploading to App Store Connect..."
+        
+        # Create upload lane in Fastfile
+        cat >> fastlane/Fastfile << 'EOF'
+
+  desc "Upload to App Store Connect"
+  lane :upload do
+    # Use App Store Connect API key
+    app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+      duration: 1200,
+      in_house: false
+    )
+    
+    # Upload to TestFlight
+    pilot(
+      ipa: "App.ipa",
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
+  end
+EOF
+
+        # Run upload
+        fastlane upload
+        
+        echo "✅ Upload to App Store Connect completed"
+      env:
+        APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        FASTLANE_DISABLE_COLORS: true
+        FASTLANE_SKIP_UPDATE_CHECK: true
+        FASTLANE_HIDE_GITHUB_ISSUES: true
+        CI: true
     
     - name: Upload signed IPA as artifact
       uses: actions/upload-artifact@v4
