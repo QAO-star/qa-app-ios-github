@@ -75,43 +75,43 @@ jobs:
         echo "${{ secrets.APP_STORE_CONNECT_API_KEY }}" > fastlane/AuthKey_${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}.p8
         
         # Create Fastlane configuration files
-        cat > fastlane/Fastfile << 'EOF'
-default_platform(:ios)
+        cat > fastlane/Fastfile << 'FASTFILE_EOF'
+        default_platform(:ios)
 
-platform :ios do
-  desc "Generate certificates and provisioning profiles"
-  lane :certificates do
-    # Use App Store Connect API key
-    app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
-      duration: 1200,
-      in_house: false
-    )
-    
-    # Generate distribution certificate
-    cert(
-      development: false,
-      output_path: "./certificates/"
-    )
-    
-    # Generate App Store provisioning profile
-    sigh(
-      development: false,
-      app_identifier: "com.qaonline.app",
-      output_path: "./certificates/",
-      filename: "QA-Online-App-Store-Profile.mobileprovision"
-    )
-  end
-end
-EOF
+        platform :ios do
+          desc "Generate certificates and provisioning profiles"
+          lane :certificates do
+            # Use App Store Connect API key
+            app_store_connect_api_key(
+              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+              duration: 1200,
+              in_house: false
+            )
+            
+            # Generate distribution certificate
+            cert(
+              development: false,
+              output_path: "./certificates/"
+            )
+            
+            # Generate App Store provisioning profile
+            sigh(
+              development: false,
+              app_identifier: "com.qaonline.app",
+              output_path: "./certificates/",
+              filename: "QA-Online-App-Store-Profile.mobileprovision"
+            )
+          end
+        end
+        FASTFILE_EOF
 
-        cat > fastlane/Appfile << 'EOF'
-app_identifier("com.qaonline.app")
-apple_id("jonatan.k@qaonline.co.il")
-team_id("BL7NANM4RM")
-EOF
+        cat > fastlane/Appfile << 'APPFILE_EOF'
+        app_identifier("com.qaonline.app")
+        apple_id("jonatan.k@qaonline.co.il")
+        team_id("BL7NANM4RM")
+        APPFILE_EOF
 
         echo "✅ Fastlane configuration created"
       env:
@@ -143,6 +143,23 @@ EOF
           cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           echo "✅ Provisioning profile installed"
         fi
+        
+        # Import the generated certificate
+        if [ -f "certificates/distribution.cer" ]; then
+          echo "🔐 Importing generated distribution certificate..."
+          security import certificates/distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+          echo "✅ Certificate imported"
+        fi
+        
+        if [ -f "certificates/distribution.p12" ]; then
+          echo "🔐 Importing generated distribution certificate (P12)..."
+          security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+          echo "✅ P12 Certificate imported"
+        fi
+        
+        # Verify certificates are available
+        echo "🔍 Available signing identities:"
+        security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
       env:
         APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
         APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -181,6 +198,10 @@ EOF
         # Show available signing identities from default keychain
         echo "Available signing identities:"
         security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+        
+        # Show installed provisioning profiles
+        echo "📋 Installed provisioning profiles:"
+        ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep -E "(QA-Online|\.mobileprovision)" || echo "No QA-Online profiles found"
     
     - name: Install iOS dependencies
       run: |
@@ -244,27 +265,27 @@ EOF
         echo "🚀 Uploading to App Store Connect..."
         
         # Create upload lane in Fastfile
-        cat >> fastlane/Fastfile << 'EOF'
+        cat >> fastlane/Fastfile << 'UPLOAD_EOF'
 
-  desc "Upload to App Store Connect"
-  lane :upload do
-    # Use App Store Connect API key
-    app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
-      key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
-      duration: 1200,
-      in_house: false
-    )
-    
-    # Upload to TestFlight
-    pilot(
-      ipa: "App.ipa",
-      skip_waiting_for_build_processing: true,
-      skip_submission: true
-    )
-  end
-EOF
+          desc "Upload to App Store Connect"
+          lane :upload do
+            # Use App Store Connect API key
+            app_store_connect_api_key(
+              key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+              issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+              key_filepath: "fastlane/AuthKey_#{ENV["APP_STORE_CONNECT_API_KEY_ID"]}.p8",
+              duration: 1200,
+              in_house: false
+            )
+            
+            # Upload to TestFlight
+            pilot(
+              ipa: "App.ipa",
+              skip_waiting_for_build_processing: true,
+              skip_submission: true
+            )
+          end
+        UPLOAD_EOF
 
         # Run upload
         fastlane upload
