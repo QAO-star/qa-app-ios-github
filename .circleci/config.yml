@@ -187,72 +187,47 @@ jobs:
             cd ios/App
             fastlane test_api_key
       - run:
+          name: "Test signing setup"
+          command: |
+            cd ios/App
+            chmod +x test-signing-setup.sh
+            ./test-signing-setup.sh
+      
+      - run:
           name: "Generate certificates and profiles"
           command: |
             cd ios/App
             fastlane certificates
+            
+            # Install certificates and profiles if they exist
+            if [ -f "certificates/distribution.cer" ]; then
+              echo "🔐 Installing distribution certificate..."
+              security import certificates/distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+            fi
+            
+            if [ -f "certificates/distribution.p12" ]; then
+              echo "🔐 Installing P12 certificate..."
+              security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+            fi
+            
+            if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
+              echo "📋 Installing provisioning profile..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+            fi
+            
+            # Show available signing identities
+            echo "🔍 Available signing identities:"
+            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
       - run:
           name: "Build signed iOS app"
           command: |
             echo "🔨 Building signed iOS app..."
             cd ios/App
             
-            # Configure iOS build settings
-            /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app" App/Info.plist
-            /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName QA-Online" App/Info.plist
-            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${CIRCLE_TAG:-1.0.0}" App/Info.plist
-            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $CIRCLE_BUILD_NUM" App/Info.plist
-            
-            # Clean and archive (without code signing for now)
-            xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
-            xcodebuild archive \
-              -workspace App.xcworkspace \
-              -scheme App \
-              -configuration Release \
-              -destination generic/platform=iOS \
-              -archivePath App.xcarchive \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO \
-              PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
-              CURRENT_PROJECT_VERSION="$CIRCLE_BUILD_NUM" \
-              MARKETING_VERSION="${CIRCLE_TAG:-1.0.0}"
-            
-            # Create export options plist with automatic signing
-            echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
-            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
-            echo '<plist version="1.0">' >> exportOptions.plist
-            echo '<dict>' >> exportOptions.plist
-            echo '    <key>method</key>' >> exportOptions.plist
-            echo '    <string>app-store</string>' >> exportOptions.plist
-            echo '    <key>signingStyle</key>' >> exportOptions.plist
-            echo '    <string>automatic</string>' >> exportOptions.plist
-            echo '    <key>teamID</key>' >> exportOptions.plist
-            echo '    <string>'$APPLE_TEAM_ID'</string>' >> exportOptions.plist
-            echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
-            echo '    <true/>' >> exportOptions.plist
-            echo '    <key>uploadBitcode</key>' >> exportOptions.plist
-            echo '    <false/>' >> exportOptions.plist
-            echo '    <key>uploadSymbols</key>' >> exportOptions.plist
-            echo '    <false/>' >> exportOptions.plist
-            echo '</dict>' >> exportOptions.plist
-            echo '</plist>' >> exportOptions.plist
-            
-            # Note: Using automatic signing, no need to install profiles manually
-            echo "🔧 Using automatic signing for export"
-            
-            # Export IPA with proper signing
-            xcodebuild -exportArchive \
-              -archivePath App.xcarchive \
-              -exportPath . \
-              -exportOptionsPlist exportOptions.plist
-            
-            # Verify IPA
-            if [ ! -f "App.ipa" ]; then
-              echo "❌ Signed IPA file was not created!"
-              exit 1
-            fi
-            echo "✅ Signed IPA file created successfully"
-            ls -la App.ipa
+            # Make the signing script executable and run it
+            chmod +x sign-and-export.sh
+            ./sign-and-export.sh
       - run:
           name: "Upload to App Store Connect"
           command: |
