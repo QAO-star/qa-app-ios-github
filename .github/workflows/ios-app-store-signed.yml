@@ -122,25 +122,30 @@ jobs:
           ls -la certificates/
         fi
         
-        # Import certificates into the default keychain
+                # Import certificates into the default keychain
         if [ -f "certificates/distribution.p12" ]; then
           echo "🔐 Importing distribution certificate into default keychain..."
           
-          # Try with password first (with timeout)
+          # Try multiple import approaches
+          echo "🔐 Attempt 1: Import with password..."
           if [ -n "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" ]; then
-            echo "🔐 Trying with password..."
-            timeout 30s security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" || echo "⚠️ Password import failed or timed out, trying without password..."
+            security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "${{ secrets.IOS_DIST_CERTIFICATE_PASSWORD }}" && echo "✅ Import with password succeeded" || echo "⚠️ Import with password failed"
           fi
           
-          # Try without password (with timeout)
-          echo "🔐 Trying without password..."
-          timeout 30s security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || echo "⚠️ Import failed or timed out, but continuing..."
+          echo "🔐 Attempt 2: Import without password..."
+          security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign && echo "✅ Import without password succeeded" || echo "⚠️ Import without password failed"
           
-          echo "✅ Distribution certificate import completed"
-        
-        # Verify certificate import
-        echo "🔍 Verifying certificate import..."
-        security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found"
+          echo "🔐 Attempt 3: Import to system keychain..."
+          security import certificates/distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign && echo "✅ Import to system keychain succeeded" || echo "⚠️ Import to system keychain failed"
+          
+          echo "✅ Distribution certificate import attempts completed"
+          
+          # Verify certificate import
+          echo "🔍 Verifying certificate import..."
+          echo "Checking login keychain:"
+          security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found in login keychain"
+          echo "Checking system keychain:"
+          security find-identity -v -p codesigning /Library/Keychains/System.keychain | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found in system keychain"
         fi
         
         if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
@@ -166,10 +171,16 @@ jobs:
         
         # Update the Pods project to use Automatic signing (they don't support manual profiles)
         if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
+            echo "🔧 Configuring Pods for automatic signing..."
+            
+            # Remove all provisioning profile specifications from Pods
+            sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
+            
+            # Set all Pods targets to automatic signing
             sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
             sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "QA-Online-App-Store-Profile";/PROVISIONING_PROFILE_SPECIFIER = "";/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = QA-Online-App-Store-Profile;/PROVISIONING_PROFILE_SPECIFIER = "";/g' Pods/Pods.xcodeproj/project.pbxproj
+            
+            echo "✅ Pods configured for automatic signing"
         fi
         
         echo "✅ Manual signing configured for all targets"
