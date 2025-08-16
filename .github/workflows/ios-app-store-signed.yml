@@ -77,12 +77,50 @@ jobs:
         echo "🔍 API key ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}"
         echo "🔍 Issuer ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
         echo "🔍 API key content length: $(echo '${{ secrets.APP_STORE_CONNECT_API_KEY }}' | wc -c)"
+        echo "🔍 API key first line: $(echo '${{ secrets.APP_STORE_CONNECT_API_KEY }}' | head -n 1)"
+        echo "🔍 API key last line: $(echo '${{ secrets.APP_STORE_CONNECT_API_KEY }}' | tail -n 1)"
+        
+        # Test creating a temporary file to validate format
+        echo '${{ secrets.APP_STORE_CONNECT_API_KEY }}' > test_api_key.p8
+        echo "🔍 Test file created with $(wc -l < test_api_key.p8) lines"
+        echo "🔍 Test file format check:"
+        if openssl ec -in test_api_key.p8 -text -noout > /dev/null 2>&1; then
+          echo "✅ API key format is valid"
+        else
+          echo "❌ API key format is invalid"
+          echo "First few lines of key:"
+          head -n 3 test_api_key.p8
+        fi
+        rm -f test_api_key.p8
         
         # Create Fastlane configuration files
         cat > fastlane/Fastfile << 'FASTFILE_EOF'
         default_platform(:ios)
 
         platform :ios do
+          desc "Test API key authentication"
+          lane :test_api_key do
+            begin
+              # Test API key with minimal operation
+              api_key = app_store_connect_api_key(
+                key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+                issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+                key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+                duration: 1200,
+                in_house: false
+              )
+              
+              # Try a simple API call to verify authentication
+              UI.success("✅ API key authentication successful")
+              puts "🔍 API Key ID: #{api_key.key_id}"
+              puts "🔍 Issuer ID: #{api_key.issuer_id}"
+              
+            rescue => e
+              UI.error("❌ API key authentication failed: #{e.message}")
+              raise e
+            end
+          end
+          
           desc "Generate certificates and provisioning profiles"
           lane :certificates do
             # Use App Store Connect API key with key content (better for CI/CD)
@@ -169,7 +207,12 @@ jobs:
         export APP_STORE_CONNECT_ISSUER_ID="${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}"
         export APPLE_TEAM_ID="${{ secrets.APPLE_TEAM_ID }}"
         
-        # Run Fastlane to generate certificates
+        # First test API key authentication
+        echo "🔍 Testing API key authentication..."
+        fastlane test_api_key
+        
+        # If test passes, proceed with certificate generation
+        echo "🔐 Generating certificates..."
         fastlane certificates
         
         echo "✅ Certificates and profiles generated successfully"
