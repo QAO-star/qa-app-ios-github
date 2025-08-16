@@ -300,11 +300,29 @@ jobs:
               exit 1
             fi
             
-            # Install the P12 certificate
+            # Install the P12 certificate with timeout and error handling
             if [ -f "ios_distribution.p12" ]; then
               echo "🔐 Installing P12 certificate..."
-              security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-              echo "✅ P12 certificate installed"
+              
+              # Try to install without password first
+              timeout 60 security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "" || {
+                echo "⚠️ First attempt failed, trying with different keychain..."
+                # Try with system keychain
+                timeout 60 security import ios_distribution.p12 -k /Library/Keychains/System.keychain -T /usr/bin/codesign -P "" || {
+                  echo "⚠️ System keychain failed, trying login keychain..."
+                  # Try with login keychain
+                  timeout 60 security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain -T /usr/bin/codesign -P "" || {
+                    echo "❌ All certificate installation attempts failed"
+                    echo "🔍 Checking if certificate is already installed..."
+                    security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" || {
+                      echo "❌ No iPhone Distribution certificate found"
+                      exit 1
+                    }
+                    echo "✅ Certificate appears to be already installed"
+                  }
+                }
+              }
+              echo "✅ P12 certificate installation completed"
             else
               echo "❌ P12 certificate not found"
               echo "📥 Please ensure ios_distribution.p12 is in the project root"
