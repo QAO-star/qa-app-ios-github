@@ -235,6 +235,12 @@ jobs:
             echo '        <key>com.qaonline.app</key>' >> exportOptions.plist
             echo '        <string>QA-Online-App-Store-Profile</string>' >> exportOptions.plist
             echo '    </dict>' >> exportOptions.plist
+            echo '    <key>excludeProvisioningProfiles</key>' >> exportOptions.plist
+            echo '    <array>' >> exportOptions.plist
+            echo '        <string>Capacitor.framework</string>' >> exportOptions.plist
+            echo '        <string>Cordova.framework</string>' >> exportOptions.plist
+            echo '        <string>Pods_App.framework</string>' >> exportOptions.plist
+            echo '    </array>' >> exportOptions.plist
             echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
             echo '    <true/>' >> exportOptions.plist
             echo '    <key>uploadBitcode</key>' >> exportOptions.plist
@@ -243,6 +249,16 @@ jobs:
             echo '    <false/>' >> exportOptions.plist
             echo '</dict>' >> exportOptions.plist
             echo '</plist>' >> exportOptions.plist
+            
+            # Install the generated provisioning profile
+            if [ -f "./certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
+              echo "📱 Installing provisioning profile..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
+              cp ./certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+              echo "✅ Provisioning profile installed"
+            else
+              echo "⚠️ No provisioning profile found, continuing..."
+            fi
             
             # Export IPA with proper signing
             xcodebuild -exportArchive \
