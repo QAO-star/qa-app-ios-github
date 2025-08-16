@@ -351,9 +351,51 @@ jobs:
             echo "📦 Extracting IPA..."
             unzip -q App.ipa -d Payload/
             
-            # Sign the app bundle
-            echo "🔐 Signing app bundle..."
-            codesign --force --sign "iPhone Distribution" --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app
+            # Check available signing identities
+            echo "🔍 Available signing identities:"
+            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+            
+            # Try different signing approaches
+            echo "🔐 Attempting to sign app bundle..."
+            
+            # Method 1: Try with "iPhone Distribution" identity
+            if codesign --force --sign "iPhone Distribution" Payload/App.app 2>/dev/null; then
+              echo "✅ Successfully signed with 'iPhone Distribution'"
+            else
+              echo "⚠️ 'iPhone Distribution' failed, trying alternative methods..."
+              
+              # Method 2: Try with any available identity
+              AVAILABLE_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
+              
+              if [ -n "$AVAILABLE_IDENTITY" ]; then
+                echo "🔐 Trying with available identity: $AVAILABLE_IDENTITY"
+                if codesign --force --sign "$AVAILABLE_IDENTITY" Payload/App.app 2>/dev/null; then
+                  echo "✅ Successfully signed with available identity"
+                else
+                  echo "❌ All signing attempts failed"
+                  echo "🔧 Creating unsigned IPA for manual signing..."
+                  # Create unsigned IPA as fallback
+                  rm -f App.ipa
+                  zip -r App-unsigned.ipa Payload/
+                  rm -rf Payload/
+                  echo "📦 Created unsigned IPA: App-unsigned.ipa"
+                  echo "📱 You can sign this manually using:"
+                  echo "   codesign --force --sign 'YOUR_CERTIFICATE_NAME' App-unsigned.ipa"
+                  exit 1
+                fi
+              else
+                echo "❌ No signing certificates found"
+                echo "🔧 Creating unsigned IPA for manual signing..."
+                # Create unsigned IPA as fallback
+                rm -f App.ipa
+                zip -r App-unsigned.ipa Payload/
+                rm -rf Payload/
+                echo "📦 Created unsigned IPA: App-unsigned.ipa"
+                echo "📱 You can sign this manually using:"
+                echo "   codesign --force --sign 'YOUR_CERTIFICATE_NAME' App-unsigned.ipa"
+                exit 1
+              fi
+            fi
             
             # Verify the signature
             echo "🔍 Verifying signature..."
@@ -377,6 +419,10 @@ jobs:
       - store_artifacts:
           path: App-signed.ipa
           destination: signed-ipa
+      
+      - store_artifacts:
+          path: App-unsigned.ipa
+          destination: unsigned-ipa
 
 # Define workflows
 workflows:
