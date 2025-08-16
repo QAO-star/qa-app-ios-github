@@ -137,6 +137,10 @@ jobs:
           timeout 30s security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign || echo "⚠️ Import failed or timed out, but continuing..."
           
           echo "✅ Distribution certificate import completed"
+        
+        # Verify certificate import
+        echo "🔍 Verifying certificate import..."
+        security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" || echo "⚠️ No iPhone Distribution certificate found"
         fi
         
         if [ -f "certificates/QA-Online-App-Store-Profile.mobileprovision" ]; then
@@ -144,6 +148,10 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp certificates/QA-Online-App-Store-Profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
           echo "✅ Provisioning profile installed"
+          
+          # List installed profiles
+          echo "📋 Installed provisioning profiles:"
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep QA-Online || echo "⚠️ No QA-Online profile found"
         fi
     
     - name: Configure manual signing with certificates
@@ -156,12 +164,12 @@ jobs:
         sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
         sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
         
-        # Update the Pods project if it exists
+        # Update the Pods project to use Automatic signing (they don't support manual profiles)
         if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
-            sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGN_STYLE = "Automatic";/CODE_SIGN_STYLE = "Manual";/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = "QA-Online-App-Store-Profile";/PROVISIONING_PROFILE_SPECIFIER = "";/g' Pods/Pods.xcodeproj/project.pbxproj
+            sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = QA-Online-App-Store-Profile;/PROVISIONING_PROFILE_SPECIFIER = "";/g' Pods/Pods.xcodeproj/project.pbxproj
         fi
         
         echo "✅ Manual signing configured for all targets"
