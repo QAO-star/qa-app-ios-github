@@ -71,36 +71,34 @@ jobs:
                 # Install fastlane certificate tools
                 gem install spaceship-cli --no-document
                 
-                # Create App Store distribution certificate
-                cat > create_cert.rb << 'EOF'
-require 'spaceship'
-
-# Authenticate with App Store Connect API
-Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(
-  keyfile: 'AuthKey_ZA7M4DJPV8.p8',
-  key_id: ENV['KEY_ID'],
-  issuer_id: ENV['ISSUER_ID']
-)
-
-begin
-  # Read CSR content
-  csr_content = File.read('ios_distribution.csr')
-  
-  # Create distribution certificate
-  certificate = Spaceship::ConnectAPI::Certificate.create(
-    certificate_type: Spaceship::ConnectAPI::Certificate::CertificateType::DISTRIBUTION,
-    csr_content: csr_content
-  )
-  
-  # Save certificate to file
-  File.write('ios_appstore_distribution.cer', certificate.certificate_content)
-  puts "✅ App Store distribution certificate created: ios_appstore_distribution.cer"
-  
-rescue => e
-  puts "❌ Failed to create certificate: #{e.message}"
-  puts "⚠️ Will use existing certificate"
-end
-EOF
+                # Create App Store distribution certificate using printf commands
+                printf '%s\n' "require 'spaceship'" > create_cert.rb
+                printf '%s\n' "" >> create_cert.rb
+                printf '%s\n' "# Authenticate with App Store Connect API" >> create_cert.rb
+                printf '%s\n' "Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(" >> create_cert.rb
+                printf '%s\n' "  keyfile: 'AuthKey_ZA7M4DJPV8.p8'," >> create_cert.rb
+                printf '%s\n' "  key_id: ENV['KEY_ID']," >> create_cert.rb
+                printf '%s\n' "  issuer_id: ENV['ISSUER_ID']" >> create_cert.rb
+                printf '%s\n' ")" >> create_cert.rb
+                printf '%s\n' "" >> create_cert.rb
+                printf '%s\n' "begin" >> create_cert.rb
+                printf '%s\n' "  # Read CSR content" >> create_cert.rb
+                printf '%s\n' "  csr_content = File.read('ios_distribution.csr')" >> create_cert.rb
+                printf '%s\n' "  " >> create_cert.rb
+                printf '%s\n' "  # Create distribution certificate" >> create_cert.rb
+                printf '%s\n' "  certificate = Spaceship::ConnectAPI::Certificate.create(" >> create_cert.rb
+                printf '%s\n' "    certificate_type: Spaceship::ConnectAPI::Certificate::CertificateType::DISTRIBUTION," >> create_cert.rb
+                printf '%s\n' "    csr_content: csr_content" >> create_cert.rb
+                printf '%s\n' "  )" >> create_cert.rb
+                printf '%s\n' "  " >> create_cert.rb
+                printf '%s\n' "  # Save certificate to file" >> create_cert.rb
+                printf '%s\n' "  File.write('ios_appstore_distribution.cer', certificate.certificate_content)" >> create_cert.rb
+                printf '%s\n' "  puts '✅ App Store distribution certificate created: ios_appstore_distribution.cer'" >> create_cert.rb
+                printf '%s\n' "  " >> create_cert.rb
+                printf '%s\n' "rescue => e" >> create_cert.rb
+                printf '%s\n' "  puts \"❌ Failed to create certificate: #{e.message}\"" >> create_cert.rb
+                printf '%s\n' "  puts '⚠️ Will use existing certificate'" >> create_cert.rb
+                printf '%s\n' "end" >> create_cert.rb
 
                 # Run the certificate creation script
                 ISSUER_ID="$ISSUER_ID" KEY_ID="$KEY_ID" ruby create_cert.rb
