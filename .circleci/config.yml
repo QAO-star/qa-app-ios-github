@@ -463,76 +463,8 @@ jobs:
               mkdir -p Payload/App.app
               
               # Create comprehensive Info.plist with all required Apple metadata
-              cat > Payload/App.app/Info.plist << 'PLIST_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>CFBundleIdentifier</key>
-    <string>com.qaonline.app</string>
-    <key>CFBundleName</key>
-    <string>QA-Online</string>
-    <key>CFBundleDisplayName</key>
-    <string>QA-Online</string>
-    <key>CFBundleVersion</key>
-    <string>1.0</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleExecutable</key>
-    <string>App</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleSupportedPlatforms</key>
-    <array>
-        <string>iPhoneOS</string>
-    </array>
-    <key>MinimumOSVersion</key>
-    <string>12.0</string>
-    <key>DTPlatformName</key>
-    <string>iphoneos</string>
-    <key>DTPlatformVersion</key>
-    <string>17.5</string>
-    <key>DTSDKName</key>
-    <string>iphoneos17.5</string>
-    <key>DTSDKBuild</key>
-    <string>21F79</string>
-    <key>DTPlatformBuild</key>
-    <string>21F79</string>
-    <key>DTXcode</key>
-    <string>1540</string>
-    <key>DTXcodeBuild</key>
-    <string>15F31d</string>
-    <key>DTCompiler</key>
-    <string>com.apple.compilers.llvm.clang.1_0</string>
-    <key>UIDeviceFamily</key>
-    <array>
-        <integer>1</integer>
-        <integer>2</integer>
-    </array>
-    <key>UIRequiredDeviceCapabilities</key>
-    <array>
-        <string>arm64</string>
-    </array>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>LSRequiresIPhoneOS</key>
-    <true/>
-</dict>
-</plist>
-PLIST_EOF
+              echo "Creating complete Info.plist..."
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>17.5</string>\n    <key>DTSDKName</key>\n    <string>iphoneos17.5</string>\n    <key>DTSDKBuild</key>\n    <string>21F79</string>\n    <key>DTPlatformBuild</key>\n    <string>21F79</string>\n    <key>DTXcode</key>\n    <string>1540</string>\n    <key>DTXcodeBuild</key>\n    <string>15F31d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -584,24 +516,7 @@ PLIST_EOF
               
               # Create proper entitlements file
               echo "🔐 Creating entitlements file..."
-              cat > Payload/App.app/App.entitlements << 'ENTITLEMENTS_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>application-identifier</key>
-    <string>BL7NANM4RM.com.qaonline.app</string>
-    <key>com.apple.developer.team-identifier</key>
-    <string>BL7NANM4RM</string>
-    <key>get-task-allow</key>
-    <false/>
-    <key>keychain-access-groups</key>
-    <array>
-        <string>BL7NANM4RM.*</string>
-    </array>
-</dict>
-</plist>
-ENTITLEMENTS_EOF
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>application-identifier</key>\n    <string>BL7NANM4RM.com.qaonline.app</string>\n    <key>com.apple.developer.team-identifier</key>\n    <string>BL7NANM4RM</string>\n    <key>get-task-allow</key>\n    <false/>\n    <key>keychain-access-groups</key>\n    <array>\n        <string>BL7NANM4RM.*</string>\n    </array>\n</dict>\n</plist>' > Payload/App.app/App.entitlements
               
               # EMBED PROVISIONING PROFILE FIRST - BEFORE ANYTHING ELSE
               echo "🔐 Embedding provisioning profile FIRST..."
