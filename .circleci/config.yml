@@ -151,8 +151,20 @@ jobs:
               'end' \
               > fastlane/Fastfile_cert
 
-            # Run the certificate creation lane
-            fastlane --fastfile fastlane/Fastfile_cert create_dist_cert
+            # Run the certificate creation lane using -f for custom Fastfile
+            if fastlane create_dist_cert -f fastlane/Fastfile_cert; then
+              echo "✅ Fastlane certificate creation completed"
+            else
+              echo "⚠️ Custom Fastfile failed, trying to copy to default location..."
+              # Backup existing Fastfile if it exists
+              [ -f fastlane/Fastfile ] && mv fastlane/Fastfile fastlane/Fastfile.backup
+              # Copy our cert Fastfile to default location
+              cp fastlane/Fastfile_cert fastlane/Fastfile
+              # Run with default Fastfile
+              fastlane create_dist_cert
+              # Restore original Fastfile if it existed
+              [ -f fastlane/Fastfile.backup ] && mv fastlane/Fastfile.backup fastlane/Fastfile
+            fi
             
             # Go back to root
             cd ../../
