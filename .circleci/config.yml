@@ -1353,4 +1353,4 @@ workflows:
       - simple_sign_and_upload:
           filters:
             branches:
-              only: simple-sign
+              only: main
