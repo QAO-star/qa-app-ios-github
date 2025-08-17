@@ -384,18 +384,27 @@ jobs:
                     
                     echo "🔐 Embedding provisioning profile in real iOS app..."
                     # Go back to project root to find provisioning profile
-                    cd ../../..
+                    echo "🔍 Current directory before navigation: $(pwd)"
+                    cd ../..
+                    echo "🔍 Now in directory: $(pwd)"
+                    echo "🔍 Looking for provisioning profile files..."
+                    ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found in $(pwd)"
+                    
                     if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
                       echo "✅ Found provisioning profile, embedding it..."
                       cp QAOnlineAppStoreProfile.mobileprovision ios/App/Payload/App.app/embedded.mobileprovision
                       echo "✅ Provisioning profile embedded successfully"
+                      echo "🔍 Verifying embedded profile: $(ls -la ios/App/Payload/App.app/embedded.mobileprovision)"
                     else
-                      echo "❌ Provisioning profile not found!"
-                      ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found"
+                      echo "❌ Provisioning profile not found in project root!"
+                      echo "🔍 Contents of current directory:"
+                      ls -la
                     fi
                     
                     # Go back to ios/App directory
+                    echo "🔄 Returning to ios/App directory..."
                     cd ios/App
+                    echo "🔍 Back in directory: $(pwd)"
                     
                     echo "📦 Creating IPA with embedded provisioning profile..."
                     zip -r App.ipa Payload/
