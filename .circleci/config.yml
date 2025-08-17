@@ -273,6 +273,7 @@ jobs:
             
             # Set OpenSSL compatibility for older API keys
             export OPENSSL_CONF=/dev/null
+            export OPENSSL_LEGACY_PROVIDER=1
             
             # Create Fastlane configuration for upload
             mkdir -p fastlane
@@ -284,26 +285,15 @@ jobs:
             echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
             echo '  lane :upload do' >> fastlane/Fastfile
             echo '    begin' >> fastlane/Fastfile
-            echo '      # Try API key from environment variable first' >> fastlane/Fastfile
-            echo '      if ENV["APP_STORE_CONNECT_API_KEY"] && !ENV["APP_STORE_CONNECT_API_KEY"].empty?' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Using API key from environment variable")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_content: ENV["APP_STORE_CONNECT_API_KEY"],' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '      else' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Using API key from file")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      # Force use of API key file to avoid OpenSSL curve issues' >> fastlane/Fastfile
+            echo '      UI.message("🔐 Using API key from file to avoid OpenSSL compatibility issues")' >> fastlane/Fastfile
+            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
+            echo '        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
+            echo '        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
+            echo '        key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        duration: 1200,' >> fastlane/Fastfile
+            echo '        in_house: false' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
@@ -561,6 +551,7 @@ jobs:
             
             # Set OpenSSL compatibility for older API keys
             export OPENSSL_CONF=/dev/null
+            export OPENSSL_LEGACY_PROVIDER=1
             
             # Create Fastlane configuration for upload
             mkdir -p fastlane
@@ -572,26 +563,15 @@ jobs:
             echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
             echo '  lane :upload do' >> fastlane/Fastfile
             echo '    begin' >> fastlane/Fastfile
-            echo '      # Try API key from environment variable first' >> fastlane/Fastfile
-            echo '      if ENV["APP_STORE_CONNECT_API_KEY"] && !ENV["APP_STORE_CONNECT_API_KEY"].empty?' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Using API key from environment variable")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_content: ENV["APP_STORE_CONNECT_API_KEY"],' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '      else' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Using API key from file")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      # Force use of API key file to avoid OpenSSL curve issues' >> fastlane/Fastfile
+            echo '      UI.message("🔐 Using API key from file to avoid OpenSSL compatibility issues")' >> fastlane/Fastfile
+            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
+            echo '        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
+            echo '        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
+            echo '        key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        duration: 1200,' >> fastlane/Fastfile
+            echo '        in_house: false' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
