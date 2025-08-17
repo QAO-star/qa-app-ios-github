@@ -244,6 +244,9 @@ jobs:
                   # Check if IPA was created
                   if [ -f "App.ipa" ]; then
                     echo "✅ IPA extracted successfully: $(ls -la App.ipa)"
+                    # Copy IPA to project root
+                    cp App.ipa ../../App.ipa
+                    echo "✅ IPA copied to project root"
                   else
                     echo "❌ IPA export failed, trying manual extraction..."
                     # Manual extraction as fallback
@@ -253,9 +256,11 @@ jobs:
                     rm -rf Payload
                     if [ -f "App.ipa" ]; then
                       echo "✅ Manual IPA extraction successful: $(ls -la App.ipa)"
+                      # Copy IPA to project root
+                      cp App.ipa ../../App.ipa
+                      echo "✅ IPA copied to project root"
                     else
                       echo "❌ Manual extraction also failed"
-                      cd ../..
                       CREATE_TEST_IPA=true
                     fi
                   fi
@@ -263,12 +268,10 @@ jobs:
                   echo "❌ Archive not found in current directory"
                   echo "🔍 Looking for archive in parent directories..."
                   find . -name "App.xcarchive" -type d 2>/dev/null || echo "No archive found"
-                  cd ../..
                   CREATE_TEST_IPA=true
                 fi
               else
                 echo "❌ Failed to create archive, falling back to test IPA..."
-                cd ../..
                 CREATE_TEST_IPA=true
               fi
               
@@ -276,9 +279,8 @@ jobs:
               cd ../..
               
               # Check if we got an IPA
-              if [ -f "ios/App/App.ipa" ]; then
-                echo "✅ Found existing IPA: $(ls -la ios/App/App.ipa)"
-                cp ios/App/App.ipa App.ipa
+              if [ -f "App.ipa" ]; then
+                echo "✅ Found IPA in project root: $(ls -la App.ipa)"
               else
                 echo "❌ No IPA found from build, creating test IPA..."
                 # Fall back to creating a test IPA
