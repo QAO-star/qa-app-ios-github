@@ -258,8 +258,65 @@ jobs:
       - run:
           name: "Upload to App Store Connect"
           command: |
-            cd ios/App
+            echo "🚀 Uploading signed IPA to App Store Connect..."
+            
+            # Verify the signed IPA exists
+            if [ ! -f "App-signed.ipa" ]; then
+              echo "❌ Signed IPA not found!"
+              exit 1
+            fi
+            
+            echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
+            
+            # Setup Fastlane
+            gem install fastlane
+            
+            # Create Fastlane configuration for upload
+            mkdir -p fastlane
+            cat > fastlane/Fastfile << 'FASTFILE_EOF'
+            default_platform(:ios)
+
+            platform :ios do
+              desc "Upload to App Store Connect"
+              lane :upload do
+                # Create API key for upload
+                api_key = app_store_connect_api_key(
+                  key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+                  issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+                  key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+                  duration: 1200,
+                  in_house: false
+                )
+                
+                # Upload to TestFlight with API key object
+                pilot(
+                  ipa: "../App-signed.ipa",
+                  skip_waiting_for_build_processing: true,
+                  skip_submission: true,
+                  api_key: api_key
+                )
+              end
+            end
+            FASTFILE_EOF
+
+            cat > fastlane/Appfile << 'APPFILE_EOF'
+            app_identifier("com.qaonline.app")
+            apple_id("jonatan.k@qaonline.co.il")
+            team_id("BL7NANM4RM")
+            APPFILE_EOF
+            
+            # Run upload
             fastlane upload
+            
+            echo "✅ Upload to App Store Connect completed"
+          env:
+            APP_STORE_CONNECT_API_KEY: $APP_STORE_CONNECT_API_KEY
+            APP_STORE_CONNECT_API_KEY_ID: $APP_STORE_CONNECT_API_KEY_ID
+            APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSUER_ID
+            FASTLANE_DISABLE_COLORS: true
+            FASTLANE_SKIP_UPDATE_CHECK: true
+            FASTLANE_HIDE_GITHUB_ISSUES: true
+            CI: true
       - store_artifacts:
           path: ios/App/App.ipa
           destination: ios-app-store-build
@@ -470,16 +527,55 @@ jobs:
           command: |
             echo "🚀 Uploading signed IPA to App Store Connect..."
             
+            # Verify the signed IPA exists
+            if [ ! -f "App-signed.ipa" ]; then
+              echo "❌ Signed IPA not found!"
+              exit 1
+            fi
+            
+            echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
+            
             # Setup Fastlane
             gem install fastlane
             
-            # Use existing Fastlane configuration
-            cd ios/App
+            # Create Fastlane configuration for upload
+            mkdir -p fastlane
+            cat > fastlane/Fastfile << 'FASTFILE_EOF'
+            default_platform(:ios)
+
+            platform :ios do
+              desc "Upload to App Store Connect"
+              lane :upload do
+                # Create API key for upload
+                api_key = app_store_connect_api_key(
+                  key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+                  issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+                  key_content: ENV["APP_STORE_CONNECT_API_KEY"],
+                  duration: 1200,
+                  in_house: false
+                )
+                
+                # Upload to TestFlight with API key object
+                pilot(
+                  ipa: "../App-signed.ipa",
+                  skip_waiting_for_build_processing: true,
+                  skip_submission: true,
+                  api_key: api_key
+                )
+              end
+            end
+            FASTFILE_EOF
+
+            cat > fastlane/Appfile << 'APPFILE_EOF'
+            app_identifier("com.qaonline.app")
+            apple_id("jonatan.k@qaonline.co.il")
+            team_id("BL7NANM4RM")
+            APPFILE_EOF
             
-            # Upload using existing upload lane
+            # Run upload
             fastlane upload
             
-            echo "✅ Upload process completed!"
+            echo "✅ Upload to App Store Connect completed"
       
       - store_artifacts:
           path: App-signed.ipa
