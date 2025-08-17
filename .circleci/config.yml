@@ -403,6 +403,28 @@ jobs:
                       echo "✅ Added missing provisioning profile to fixed IPA"
                     fi
                     
+                    # Sign frameworks and main app in the fixed IPA
+                    echo "🔐 Signing frameworks in fixed IPA..."
+                    if [ -d "Payload/App.app/Frameworks" ]; then
+                      for framework in Payload/App.app/Frameworks/*.framework; do
+                        if [ -d "$framework" ]; then
+                          framework_name=$(basename "$framework")
+                          echo "🔐 Signing framework: $framework_name"
+                          # Get certificate hash from keychain
+                          CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+                          if [ -n "$CERT_HASH" ]; then
+                            codesign --force --sign "$CERT_HASH" "$framework" && echo "✅ Signed $framework_name" || echo "⚠️ Failed to sign $framework_name"
+                          fi
+                        fi
+                      done
+                    fi
+                    
+                    # Sign main app
+                    echo "🔐 Signing main app in fixed IPA..."
+                    if [ -n "$CERT_HASH" ]; then
+                      codesign --force --sign "$CERT_HASH" Payload/App.app && echo "✅ Signed main app" || echo "⚠️ Failed to sign main app"
+                    fi
+                    
                     # Repackage the IPA
                     zip -r ../App-fixed.ipa Payload/
                     cd ..
@@ -540,17 +562,39 @@ jobs:
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" ~/Library/Keychains/build.keychain
               security default-keychain -s ~/Library/Keychains/build.keychain
               
-              # Try codesign with the actual certificate hash
+              # Sign frameworks first (they must be signed before the main app)
+              echo "🔐 Signing embedded frameworks..."
+              if [ -d "Payload/App.app/Frameworks" ]; then
+                for framework in Payload/App.app/Frameworks/*.framework; do
+                  if [ -d "$framework" ]; then
+                    framework_name=$(basename "$framework")
+                    echo "🔐 Signing framework: $framework_name"
+                    if codesign --force --sign "$CERT_HASH" "$framework"; then
+                      echo "✅ Successfully signed $framework_name"
+                    else
+                      echo "⚠️ Failed to sign $framework_name with certificate hash, trying identity name..."
+                      IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+                      if codesign --force --sign "$IDENTITY_NAME" "$framework"; then
+                        echo "✅ Successfully signed $framework_name with identity name"
+                      else
+                        echo "❌ Failed to sign $framework_name"
+                      fi
+                    fi
+                  fi
+                done
+              fi
+              
+              # Now sign the main app (must be last)
               echo "🔐 Attempting codesign with certificate hash: $CERT_HASH"
               if codesign --force --sign "$CERT_HASH" Payload/App.app; then
-                echo "✅ Successfully signed with certificate hash"
+                echo "✅ Successfully signed main app with certificate hash"
               else
                 echo "⚠️ Certificate hash signing failed, trying with identity name..."
                 # Try with the full identity name  
                 IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
                 echo "🔐 Trying with identity name: $IDENTITY_NAME"
                 if codesign --force --sign "$IDENTITY_NAME" Payload/App.app; then
-                  echo "✅ Successfully signed with identity name"
+                  echo "✅ Successfully signed main app with identity name"
                 else
                   echo "⚠️ All signing attempts failed, creating unsigned IPA..."
                   echo "📦 Creating unsigned IPA for manual signing..."
@@ -558,6 +602,7 @@ jobs:
                   rm -rf Payload/
                   echo "📦 Created unsigned IPA: App-unsigned.ipa"
                   echo "📱 Manual signing required with:"
+                  echo "   codesign --force --sign '$CERT_HASH' Payload/App.app/Frameworks/*.framework"
                   echo "   codesign --force --sign '$CERT_HASH' Payload/App.app"
                   echo "⚠️ Proceeding with unsigned IPA for upload..."
                   exit 0
@@ -576,9 +621,31 @@ jobs:
                 echo "✅ Provisioning profile re-embedded"
               fi
               
-              # Verify the signature
-              echo "🔍 Verifying app signature..."
-              codesign -dv --verbose=4 Payload/App.app
+              # Verify the signatures
+              echo "🔍 Verifying app and framework signatures..."
+              
+              # Verify frameworks first
+              if [ -d "Payload/App.app/Frameworks" ]; then
+                for framework in Payload/App.app/Frameworks/*.framework; do
+                  if [ -d "$framework" ]; then
+                    framework_name=$(basename "$framework")
+                    echo "🔍 Verifying $framework_name signature..."
+                    if codesign -dv --verbose=4 "$framework" 2>/dev/null; then
+                      echo "✅ $framework_name is properly signed"
+                    else
+                      echo "❌ $framework_name signature verification failed"
+                    fi
+                  fi
+                done
+              fi
+              
+              # Verify main app
+              echo "🔍 Verifying main app signature..."
+              if codesign -dv --verbose=4 Payload/App.app 2>/dev/null; then
+                echo "✅ Main app is properly signed"
+              else
+                echo "❌ Main app signature verification failed"
+              fi
               
               # Create signed IPA - SIMPLIFIED PROCESS
               echo "📦 Creating signed IPA..."
