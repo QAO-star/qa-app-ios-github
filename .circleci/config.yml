@@ -242,50 +242,46 @@ jobs:
             # Create Fastlane configuration for upload
             mkdir -p fastlane
             
-            # Create simple Fastfile
-            cat > fastlane/Fastfile << 'EOF'
-default_platform(:ios)
+            # Create simple Fastfile using echo commands
+            echo 'default_platform(:ios)' > fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
+            echo 'platform :ios do' >> fastlane/Fastfile
+            echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
+            echo '  lane :upload do' >> fastlane/Fastfile
+            echo '    begin' >> fastlane/Fastfile
+            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
+            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
+            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
+            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
+            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
+            echo '        duration: 1200,' >> fastlane/Fastfile
+            echo '        in_house: false' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
+            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
+            echo '      # Upload to TestFlight' >> fastlane/Fastfile
+            echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
+            echo '      pilot(' >> fastlane/Fastfile
+            echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
+            echo '        skip_submission: true,' >> fastlane/Fastfile
+            echo '        api_key: api_key' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
+            echo '      UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
+            echo '    rescue => e' >> fastlane/Fastfile
+            echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
+            echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
+            echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
+            echo '      raise e' >> fastlane/Fastfile
+            echo '    end' >> fastlane/Fastfile
+            echo '  end' >> fastlane/Fastfile
+            echo 'end' >> fastlane/Fastfile
 
-platform :ios do
-  desc "Upload to App Store Connect"
-  lane :upload do
-    begin
-      # Use API key file directly with known values
-      UI.message("🔐 Using API key file with known values...")
-      api_key = app_store_connect_api_key(
-        key_id: "GFAD2LJGMF",
-        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",
-        key_filepath: "AuthKey_GFAD2LJGMF.p8",
-        duration: 1200,
-        in_house: false
-      )
-      UI.message("✅ API key authentication successful")
-      
-      # Upload to TestFlight
-      UI.message("🚀 Attempting to upload to TestFlight...")
-      pilot(
-        ipa: "App-signed.ipa",
-        skip_waiting_for_build_processing: true,
-        skip_submission: true,
-        api_key: api_key
-      )
-      UI.message("✅ Upload to TestFlight completed successfully!")
-    rescue => e
-      UI.error("❌ Upload failed: #{e.message}")
-      UI.message("📦 Signed IPA created successfully but upload failed")
-      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")
-      raise e
-    end
-  end
-end
-EOF
-
-            # Create Appfile
-            cat > fastlane/Appfile << 'EOF'
-app_identifier("com.qaonline.app")
-apple_id("jonatan.k@qaonline.co.il")
-team_id("BL7NANM4RM")
-EOF
+            # Create Appfile using echo commands
+            echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
+            echo 'apple_id("jonatan.k@qaonline.co.il")' >> fastlane/Appfile
+            echo 'team_id("BL7NANM4RM")' >> fastlane/Appfile
             
             # Run upload
             fastlane upload
