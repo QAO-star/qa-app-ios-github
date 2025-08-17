@@ -61,12 +61,12 @@ jobs:
             echo "🔐 Creating App Store distribution certificate using API..."
             
             # Check if we have the required files
-            if [ -f "ios_distribution.csr" ] && [ -f "AuthKey_ZA7M4DJPV8.p8" ]; then
+            if [ -f "ios_distribution.csr" ] && [ -f "AuthKey_GA95D4VQYQ.p8" ]; then
               echo "✅ Found CSR and API key files"
               
               # Read API credentials
               ISSUER_ID=$(cat apple.id 2>/dev/null || echo "")
-              KEY_ID="ZA7M4DJPV8"
+              KEY_ID="GA95D4VQYQ"
               
               if [ -n "$ISSUER_ID" ]; then
                 echo "🔐 Using App Store Connect API to create distribution certificate..."

@@ -59,7 +59,7 @@ def create_certificate(jwt_token, csr_content):
 def main():
     """Main execution"""
     try:
-        key_id = os.environ.get('KEY_ID', 'ZA7M4DJPV8')
+        key_id = os.environ.get('KEY_ID', 'GA95D4VQYQ')
         issuer_id = os.environ.get('ISSUER_ID')
         
         print(f'🔍 Using Key ID: {key_id}')
@@ -85,7 +85,7 @@ def main():
         
         print('🔍 Creating JWT token...')
         # Create JWT token
-        token = create_jwt_token(key_id, issuer_id, 'AuthKey_ZA7M4DJPV8.p8')
+        token = create_jwt_token(key_id, issuer_id, 'AuthKey_GA95D4VQYQ.p8')
         print('✅ JWT token created successfully')
         
         print('🔍 Testing API connectivity first...')
