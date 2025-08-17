@@ -194,10 +194,30 @@ jobs:
               fi
             fi
             
+            # Verify the provisioning profile is embedded
+            echo "🔍 Verifying provisioning profile is embedded..."
+            if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
+              echo "✅ Provisioning profile is embedded"
+              ls -la Payload/App.app/embedded.mobileprovision
+            else
+              echo "❌ Provisioning profile not found in app bundle"
+              echo "🔧 Re-embedding provisioning profile..."
+              cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
+              echo "✅ Provisioning profile re-embedded"
+            fi
+            
+            # Verify the signature
+            echo "🔍 Verifying app signature..."
+            codesign -dv --verbose=4 Payload/App.app
+            
             # Create signed IPA
             echo "📦 Creating signed IPA..."
             rm -f App.ipa
             zip -r App-signed.ipa Payload/
+            
+            # Verify the IPA contains the provisioning profile
+            echo "🔍 Verifying IPA contents..."
+            unzip -l App-signed.ipa | grep embedded.mobileprovision || echo "⚠️ Warning: embedded.mobileprovision not found in IPA"
             
             # Clean up
             rm -rf Payload/
