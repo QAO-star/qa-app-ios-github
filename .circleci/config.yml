@@ -633,7 +633,8 @@ jobs:
                 set +e  # Don't exit on error
                 
                 # Capture both stdout and stderr, but also show real-time output
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                # Use proper code signing with our Apple Distribution certificate
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" PROVISIONING_PROFILE_SPECIFIER="QA-Online-AppStore" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
@@ -667,9 +668,16 @@ jobs:
                   printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
                   printf '%s\n' '<dict>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>development</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <string>app-store</string>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
                   printf '%s\n' '    <string>manual</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <key>teamID</key>' >> exportOptions-real.plist
+                  printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <key>provisioningProfiles</key>' >> exportOptions-real.plist
+                  printf '%s\n' '    <dict>' >> exportOptions-real.plist
+                  printf '%s\n' '        <key>com.qaonline.app</key>' >> exportOptions-real.plist
+                  printf '%s\n' '        <string>QA-Online-AppStore</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    </dict>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
                   printf '%s\n' '    <false/>' >> exportOptions-real.plist
                   printf '%s\n' '</dict>' >> exportOptions-real.plist
@@ -867,10 +875,8 @@ jobs:
               
               # Already in project root from fallback logic
               
-              # OVERRIDE: Force test IPA creation to ensure all validation fixes are applied
-              echo "🚨 OVERRIDE: Forcing test IPA creation for validation fixes"
-              REAL_IPA_CREATED=false
-              CREATE_TEST_IPA=true
+              # Use real iOS app if successfully created
+              echo "✅ Real iOS app build process completed"
               
               # Check if we got a real iOS app IPA
               if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
@@ -1532,10 +1538,17 @@ jobs:
               rm -rf Payload/
             fi
             
-            # Ensure we have the final IPA named correctly
-            if [ -f "App.ipa" ] && [ ! -f "App-signed.ipa" ]; then
-              echo "🔄 Renaming App.ipa to App-signed.ipa"
+            # Handle final IPA based on whether we built real iOS app or test IPA
+            if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
+              echo "✅ Using real iOS app IPA (already properly signed for App Store)"
+              echo "🔄 Renaming real iOS app to App-signed.ipa for upload consistency"
               mv App.ipa App-signed.ipa
+              echo "📱 Real iOS app ready for App Store Connect upload!"
+            elif [ -f "App-signed.ipa" ]; then
+              echo "✅ Using test IPA (created from Payload directory)"
+            else
+              echo "❌ No IPA file found - neither real iOS app nor test IPA was created"
+              exit 1
             fi
             
             if [ -f "App-signed.ipa" ]; then
