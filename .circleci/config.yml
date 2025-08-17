@@ -270,8 +270,16 @@ jobs:
             echo "⚠️ Both Python and Fastlane API authentication failed with 401 errors"
             echo "🎯 SOLUTION: Create Apple Distribution certificate manually and proceed"
             
-            # Since API is failing, let's create a manual certificate request in the pipeline
-            echo "🔐 Creating Apple Distribution certificate request in macOS pipeline..."
+            # Check if we already have a valid certificate pair
+            if [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
+              echo "✅ EXISTING CERTIFICATE FOUND: auto_distribution.cer + auto_distribution_private_key.pem"
+              echo "🎯 SKIPPING CSR GENERATION - Using existing certificate pair"
+              echo "💡 Apple Distribution certificates are valid for 1 year - no need to recreate"
+              echo "📅 Only generate new certificates when current one expires or gets revoked"
+              echo "🚀 Proceeding with existing certificate..."
+            else
+              echo "❌ No existing certificate pair found"
+              echo "🔐 Creating Apple Distribution certificate request in macOS pipeline..."
             
             # Use existing private key if available, otherwise generate a new one
             if [ -f "apple_distribution_private_key.pem" ]; then
@@ -319,6 +327,7 @@ jobs:
             echo "   Recent Apple changes sometimes accept iPhone Distribution for App Store uploads"
             echo ""
             echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
+            fi  # End of certificate creation conditional
             
             # Apple Distribution certificate already installed at the beginning of this step
             echo "🔍 Apple Distribution certificate should now be available in keychain if it exists"
@@ -626,7 +635,17 @@ jobs:
                 echo "  Scheme: App"
                 echo "  Configuration: Release"
                 echo "  Destination: generic/platform=iOS"
-                echo "  Code Signing: Disabled"
+                echo "  Code Signing: Apple Distribution with Team ID"
+                
+                # Configure project settings for proper code signing
+                echo "🔧 Configuring project for App Store signing..."
+                # Set development team and code signing style for App target
+                sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
+                sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
+                # Add provisioning profile setting for App target in Release configuration
+                sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;\
+                PROVISIONING_PROFILE_SPECIFIER = "QA-Online-AppStore";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile"
+                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and QA-Online-AppStore profile"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
@@ -634,7 +653,8 @@ jobs:
                 
                 # Capture both stdout and stderr, but also show real-time output
                 # Use proper code signing with our Apple Distribution certificate
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" PROVISIONING_PROFILE_SPECIFIER="QA-Online-AppStore" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                # Apply team ID and code signing identity globally, but avoid provisioning profile conflicts with CocoaPods
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" CODE_SIGN_STYLE="Manual" 2>&1 | tee /dev/stderr)
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
