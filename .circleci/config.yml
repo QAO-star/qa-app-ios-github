@@ -86,7 +86,13 @@ jobs:
                   security import ios_appstore_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
                   echo "✅ App Store distribution certificate installed!"
                 else
-                  echo "⚠️ Certificate creation failed, using existing certificate"
+                  echo "⚠️ Certificate creation failed - API key may not have certificate management permissions"
+                  echo "🔧 SOLUTION: Pipeline will work with existing certificate for now"
+                  echo "📋 To fix permanently:"
+                  echo "   1. In Apple Developer Console, go to Users and Access"
+                  echo "   2. Select your API key (ZA7M4DJPV8)"
+                  echo "   3. Ensure 'Certificates, Identifiers & Profiles' permission is enabled"
+                  echo "   4. Or manually create 'Apple Distribution' certificate and update repository"
                 fi
               else
                 echo "⚠️ Missing ISSUER_ID, using existing certificate"
@@ -94,6 +100,12 @@ jobs:
             else
               echo "⚠️ Missing required files, using existing certificate"
             fi
+            
+            # WORKAROUND: Try to proceed with upload anyway
+            echo "🎯 PROCEEDING WITH CURRENT CERTIFICATE"
+            echo "📝 NOTE: The existing 'iPhone Distribution: Jonatan Koren' certificate"
+            echo "   may not work for App Store submission, but we'll try anyway."
+            echo "   Sometimes Apple accepts it depending on account settings."
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
