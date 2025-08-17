@@ -639,13 +639,32 @@ jobs:
                 
                 # Configure project settings for proper code signing
                 echo "🔧 Configuring project for App Store signing..."
+                
+                # Extract the actual provisioning profile name from the .mobileprovision file
+                cd ../../  # Go to project root to find the .mobileprovision file
+                echo "🔍 Extracting provisioning profile name from QAOnlineAppStoreProfile.mobileprovision..."
+                if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                  # Extract the profile name from the mobileprovision file
+                  PROFILE_NAME=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract Name xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
+                  if [ -n "$PROFILE_NAME" ]; then
+                    echo "✅ Found provisioning profile name: $PROFILE_NAME"
+                  else
+                    echo "⚠️ Could not extract profile name, using filename fallback"
+                    PROFILE_NAME="QAOnlineAppStoreProfile"
+                  fi
+                else
+                  echo "⚠️ QAOnlineAppStoreProfile.mobileprovision not found, using default name"
+                  PROFILE_NAME="QA-Online-AppStore"
+                fi
+                cd ios/App  # Go back to iOS project directory
+                
                 # Set development team and code signing style for App target
                 sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
                 sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
                 # Add provisioning profile setting for App target in Release configuration
                 sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;\
-                PROVISIONING_PROFILE_SPECIFIER = "QA-Online-AppStore";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile"
-                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and QA-Online-AppStore profile"
+                PROVISIONING_PROFILE_SPECIFIER = "'"$PROFILE_NAME"'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile"
+                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and profile $PROFILE_NAME"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
