@@ -248,12 +248,20 @@ jobs:
                 echo "  Destination: generic/platform=iOS"
                 echo "  Code Signing: Disabled"
                 
-                # Build with minimal settings and show output in real-time
-                echo "🔍 Running xcodebuild archive with real-time output..."
+                # Build with minimal settings and capture errors for analysis
+                echo "🔍 Running xcodebuild archive with error capture..."
                 set +e  # Don't exit on error
-                xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="12.0" -verbose
+                
+                # Capture both stdout and stderr, but also show real-time output
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="12.0" 2>&1 | tee /dev/stderr)
                 BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
+                
+                if [ $BUILD_EXIT_CODE -ne 0 ]; then
+                  echo "🔍 Build failed, analyzing errors..."
+                  echo "📋 Error summary from build output:"
+                  echo "$BUILD_OUTPUT" | grep -E "(error:|Error:|ERROR:|failure:|FAILURE:|❌|✗)" | head -10 || echo "No clear error patterns found"
+                fi
                 
                 echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
               fi
@@ -347,7 +355,10 @@ jobs:
                 echo "🔍 Checking if we can use existing app structure..."
                 
                 # Check if there's already a working app structure in the Payload directory
+                echo "🔍 Current directory: $(pwd)"
                 cd ../../..  # Go back to project root to check Payload
+                echo "🔍 Project root directory: $(pwd)"
+                
                 if [ -d "Payload/App.app" ] && [ -f "Payload/App.app/App" ]; then
                   echo "✅ Found existing app structure in Payload directory!"
                   echo "🔄 Using existing app structure instead of building from scratch..."
@@ -363,16 +374,16 @@ jobs:
                     echo "⚠️ Existing app executable needs fixing"
                     REAL_IPA_CREATED=false  # Will trigger fixing logic later
                   fi
-                  cd ios/App  # Go back to ios/App directory
                 else
                   echo "❌ No existing app structure found, will create test IPA"
                   REAL_IPA_CREATED=false
-                  cd ios/App  # Go back to ios/App directory
                 fi
+                
+                # Make sure we're back in project root for the rest of the script
+                echo "🔍 Ensuring we're in project root: $(pwd)"
               fi
               
-              # Go back to project root
-              cd ../..
+              # Already in project root from fallback logic
               
               # Check if we got a real iOS app IPA
               if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
