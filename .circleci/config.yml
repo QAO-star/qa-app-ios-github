@@ -790,6 +790,10 @@ jobs:
             echo "✅ API key file created"
             
             # Setup Fastlane
+            # Set terminal environment variables to fix fastlane terminal issues
+            export TERM=xterm-256color
+            export TERMINFO=/usr/share/terminfo
+            
             gem install fastlane
             
             # Set OpenSSL compatibility for older API keys
@@ -841,10 +845,30 @@ jobs:
             echo 'apple_id("jonatan.k@qaonline.co.il")' >> fastlane/Appfile
             echo 'team_id("BL7NANM4RM")' >> fastlane/Appfile
             
-            # Run upload
-            fastlane upload
-            
-            echo "✅ Upload to App Store Connect completed"
+            # Run upload with fallback to altool if fastlane fails
+            echo "🚀 Attempting upload with fastlane..."
+            if fastlane upload; then
+              echo "✅ Upload to App Store Connect completed via fastlane"
+            else
+              echo "⚠️ Fastlane upload failed, trying altool fallback..."
+              echo "🔧 Using Apple altool for upload..."
+              
+              # Try altool as fallback (works better in headless environments)
+              xcrun altool --upload-app --type ios --file App-signed.ipa \
+                --apiKey GFAD2LJGMF \
+                --apiIssuer ebf8afbb-9400-43d1-8a48-66d148957a62 \
+                --verbose
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Upload to App Store Connect completed via altool"
+              else
+                echo "❌ Both fastlane and altool uploads failed"
+                echo "📱 Signed IPA created successfully: App-signed.ipa"
+                echo "📤 You can manually upload this IPA to App Store Connect"
+                echo "🔗 Go to: https://appstoreconnect.apple.com"
+                exit 1
+              fi
+            fi
       
       - store_artifacts:
           path: App-signed.ipa
