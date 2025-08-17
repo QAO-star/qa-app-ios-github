@@ -23,7 +23,7 @@ jobs:
             echo "🔧 This pipeline ONLY generates the CSR - no building or signing"
             
             # Create a deterministic private key
-            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | sha256sum | cut -c1-32)
+            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | shasum -a 256 | cut -c1-32)
             echo "🔍 Using repository seed: $REPO_SEED"
             
             # Generate consistent private key
@@ -200,7 +200,7 @@ jobs:
             echo "🔧 Step 1: Generate a consistent private key"
             
             # Create a deterministic private key using a seed based on repository
-            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | sha256sum | cut -c1-32)
+            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | shasum -a 256 | cut -c1-32)
             echo "🔍 Using repository seed: $REPO_SEED"
             
             # Generate private key with deterministic seed (this ensures same key every time)
