@@ -57,6 +57,65 @@ jobs:
               echo "✅ Certificate installed"
             fi
             
+            # Try to create proper App Store distribution certificate if we have CSR
+            if [ -f "ios_distribution.csr" ] && [ -f "AuthKey_ZA7M4DJPV8.p8" ]; then
+              echo "🔐 Creating App Store distribution certificate from CSR..."
+              
+              # Read API key details
+              ISSUER_ID=$(cat apple.id 2>/dev/null || echo "")
+              KEY_ID=$(cat AuthKey_ZA7M4DJPV8.id 2>/dev/null || echo "")
+              
+              if [ -n "$ISSUER_ID" ] && [ -n "$KEY_ID" ]; then
+                echo "🔐 Using App Store Connect API to create certificate..."
+                
+                # Install fastlane certificate tools
+                gem install spaceship-cli --no-document
+                
+                # Create App Store distribution certificate
+                cat > create_cert.rb << 'EOF'
+require 'spaceship'
+
+# Authenticate with App Store Connect API
+Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(
+  keyfile: 'AuthKey_ZA7M4DJPV8.p8',
+  key_id: ENV['KEY_ID'],
+  issuer_id: ENV['ISSUER_ID']
+)
+
+begin
+  # Read CSR content
+  csr_content = File.read('ios_distribution.csr')
+  
+  # Create distribution certificate
+  certificate = Spaceship::ConnectAPI::Certificate.create(
+    certificate_type: Spaceship::ConnectAPI::Certificate::CertificateType::DISTRIBUTION,
+    csr_content: csr_content
+  )
+  
+  # Save certificate to file
+  File.write('ios_appstore_distribution.cer', certificate.certificate_content)
+  puts "✅ App Store distribution certificate created: ios_appstore_distribution.cer"
+  
+rescue => e
+  puts "❌ Failed to create certificate: #{e.message}"
+  puts "⚠️ Will use existing certificate"
+end
+EOF
+
+                # Run the certificate creation script
+                ISSUER_ID="$ISSUER_ID" KEY_ID="$KEY_ID" ruby create_cert.rb
+                
+                # Install the new certificate if created
+                if [ -f "ios_appstore_distribution.cer" ]; then
+                  echo "🔐 Installing new App Store distribution certificate..."
+                  security import ios_appstore_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+                  echo "✅ App Store distribution certificate installed"
+                fi
+              else
+                echo "⚠️ Missing API key details, using existing certificate"
+              fi
+            fi
+            
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
             
