@@ -57,59 +57,12 @@ jobs:
               echo "✅ Certificate installed"
             fi
             
-            # Try to create proper App Store distribution certificate if we have CSR
-            if [ -f "ios_distribution.csr" ] && [ -f "AuthKey_ZA7M4DJPV8.p8" ]; then
-              echo "🔐 Creating App Store distribution certificate from CSR..."
-              
-              # Read API key details
-              ISSUER_ID=$(cat apple.id 2>/dev/null || echo "")
-              KEY_ID=$(cat AuthKey_ZA7M4DJPV8.id 2>/dev/null || echo "")
-              
-              if [ -n "$ISSUER_ID" ] && [ -n "$KEY_ID" ]; then
-                echo "🔐 Using App Store Connect API to create certificate..."
-                
-                # Install fastlane which includes spaceship
-                gem install fastlane --no-document
-                
-                # Use fastlane to create certificate instead of custom Ruby script
-                echo "🔐 Using fastlane to create App Store distribution certificate..."
-                
-                # Create Fastfile for certificate creation
-                printf '%s\n' "default_platform(:ios)" > Fastfile.cert
-                printf '%s\n' "" >> Fastfile.cert
-                printf '%s\n' "platform :ios do" >> Fastfile.cert
-                printf '%s\n' "  lane :create_cert do" >> Fastfile.cert
-                printf '%s\n' "    app_store_connect_api_key(" >> Fastfile.cert
-                printf '%s\n' "      key_id: ENV['KEY_ID']," >> Fastfile.cert
-                printf '%s\n' "      issuer_id: ENV['ISSUER_ID']," >> Fastfile.cert
-                printf '%s\n' "      key_filepath: 'AuthKey_ZA7M4DJPV8.p8'" >> Fastfile.cert
-                printf '%s\n' "    )" >> Fastfile.cert
-                printf '%s\n' "    " >> Fastfile.cert
-                printf '%s\n' "    cert(" >> Fastfile.cert
-                printf '%s\n' "      development: false," >> Fastfile.cert
-                printf '%s\n' "      output_path: './'," >> Fastfile.cert
-                printf '%s\n' "      filename: 'ios_appstore_distribution'" >> Fastfile.cert
-                printf '%s\n' "    )" >> Fastfile.cert
-                printf '%s\n' "  end" >> Fastfile.cert
-                printf '%s\n' "end" >> Fastfile.cert
-
-                # Run fastlane to create certificate
-                if ISSUER_ID="$ISSUER_ID" KEY_ID="$KEY_ID" fastlane -F Fastfile.cert create_cert; then
-                  echo "✅ Fastlane certificate creation completed"
-                  
-                  # Install the new certificate if created
-                  if [ -f "ios_appstore_distribution.cer" ]; then
-                    echo "🔐 Installing new App Store distribution certificate..."
-                    security import ios_appstore_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-                    echo "✅ App Store distribution certificate installed"
-                  fi
-                else
-                  echo "⚠️ Fastlane certificate creation failed, using existing certificate"
-                fi
-              else
-                echo "⚠️ Missing API key details, using existing certificate"
-              fi
-            fi
+            # Note: Certificate creation requires manual intervention for now
+            # The current certificate is 'iPhone Distribution: Jonatan Koren' which is not an App Store distribution certificate
+            # For App Store submission, we need an 'Apple Distribution' certificate
+            echo "⚠️ Current certificate 'iPhone Distribution: Jonatan Koren' may not work for App Store submission"
+            echo "⚠️ App Store requires 'Apple Distribution' certificate for submission"
+            echo "⚠️ Proceeding with existing certificate - manual certificate update may be needed"
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
