@@ -537,7 +537,7 @@ jobs:
               
               # Create comprehensive Info.plist with all required Apple metadata
               echo "Creating complete Info.plist..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A3354</string>\n    <key>DTPlatformBuild</key>\n    <string>22A3354</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>CFBundleIcons</key>\n    <dict>\n        <key>CFBundlePrimaryIcon</key>\n        <dict>\n            <key>CFBundleIconFiles</key>\n            <array>\n                <string>Icon</string>\n                <string>Icon@2x</string>\n                <string>Icon-72</string>\n                <string>Icon-72@2x</string>\n                <string>AppIcon60x60@2x</string>\n                <string>AppIcon76x76@2x~ipad</string>\n                <string>AppIcon83.5x83.5@2x~ipad</string>\n            </array>\n        </dict>\n    </dict>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A3354</string>\n    <key>DTPlatformBuild</key>\n    <string>22A3354</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -607,38 +607,45 @@ jobs:
                   brew install imagemagick || echo "⚠️ Failed to install ImageMagick, using direct copy"
                 fi
                 
-                # Create app icons using ImageMagick if available
+                # Create app icons using ImageMagick with Apple's exact naming conventions
                 if command -v convert >/dev/null 2>&1; then
-                  echo "🔧 Creating iPhone app icon (120x120)..."
+                  echo "🔧 Creating iPhone app icon (120x120) - Apple's exact naming..."
                   convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/AppIcon60x60@2x.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/Icon-120.png
+                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/Icon-App-60x60@2x.png
                   
-                  echo "🔧 Creating iPad app icon (152x152)..."  
+                  echo "🔧 Creating iPad app icon (152x152) - Apple's exact naming..."  
                   convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/Icon-152.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/Icon-App-76x76@2x.png
                   
-                  echo "🔧 Creating iPad Pro app icon (167x167)..."
+                  echo "🔧 Creating iPad Pro app icon (167x167) - Apple's exact naming..."
                   convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/Icon-167.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/Icon-App-83.5x83.5@2x.png
+                  
+                  # Create additional standard iOS icon sizes that Apple might expect
+                  echo "🔧 Creating additional standard iOS icons..."
+                  convert company_logo.png -resize 57x57! -background white -alpha remove Payload/App.app/Icon.png
+                  convert company_logo.png -resize 114x114! -background white -alpha remove Payload/App.app/Icon@2x.png
+                  convert company_logo.png -resize 72x72! -background white -alpha remove Payload/App.app/Icon-72.png
+                  convert company_logo.png -resize 144x144! -background white -alpha remove Payload/App.app/Icon-72@2x.png
                   
                   echo "✅ Created app icons using your company logo with ImageMagick"
                   
-                  # Create proper Assets.xcassets structure for icons
-                  echo "📱 Creating Assets.xcassets for proper icon management..."
+                  # Create comprehensive Assets.xcassets structure for icons
+                  echo "📱 Creating comprehensive Assets.xcassets for proper icon management..."
                   mkdir -p Payload/App.app/Assets.xcassets/AppIcon.appiconset
                   
-                  # Copy icons to asset catalog with proper naming
-                  cp Payload/App.app/Icon-120.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-120.png
-                  cp Payload/App.app/Icon-152.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-152.png  
-                  cp Payload/App.app/Icon-167.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-167.png
+                  # Copy icons to asset catalog with Apple's expected naming
+                  cp Payload/App.app/AppIcon60x60@2x.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon60x60@2x.png
+                  cp Payload/App.app/AppIcon76x76@2x~ipad.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon76x76@2x.png  
+                  cp Payload/App.app/AppIcon83.5x83.5@2x~ipad.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon83.5x83.5@2x.png
                   
-                  # Create Contents.json for the icon set
-                  printf '{\n  "images" : [\n    {\n      "filename" : "AppIcon-120.png",\n      "idiom" : "iphone",\n      "scale" : "2x",\n      "size" : "60x60"\n    },\n    {\n      "filename" : "AppIcon-152.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "76x76"\n    },\n    {\n      "filename" : "AppIcon-167.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "83.5x83.5"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  # Create comprehensive Contents.json for the icon set with all required entries
+                  printf '{\n  "images" : [\n    {\n      "filename" : "AppIcon60x60@2x.png",\n      "idiom" : "iphone",\n      "scale" : "2x",\n      "size" : "60x60"\n    },\n    {\n      "filename" : "AppIcon76x76@2x.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "76x76"\n    },\n    {\n      "filename" : "AppIcon83.5x83.5@2x.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "83.5x83.5"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
                   
                   # Create root Contents.json for Assets.xcassets
                   printf '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/Contents.json
                   
-                  echo "✅ Created Assets.xcassets with proper icon structure"
+                  echo "✅ Created comprehensive Assets.xcassets with proper icon structure"
                   ls -la Payload/App.app/Icon*.png Payload/App.app/AppIcon*.png
                   ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
                 else
@@ -812,7 +819,7 @@ jobs:
               
               # Check app icons
               echo "🔍 Checking app icons..."
-              for icon in "Icon-120.png" "Icon-152.png" "Icon-167.png" "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png"; do
+              for icon in "Icon.png" "Icon@2x.png" "Icon-72.png" "Icon-72@2x.png" "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
                 if [ -f "Payload/App.app/$icon" ]; then
                   echo "✅ $icon exists ($(ls -la "Payload/App.app/$icon" | awk '{print $5}') bytes)"
                 else
