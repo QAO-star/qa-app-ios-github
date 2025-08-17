@@ -12,7 +12,9 @@ from cryptography.hazmat.primitives import serialization
 def create_jwt_token(key_id, issuer_id, private_key_path):
     """Create JWT token for App Store Connect API"""
     with open(private_key_path, 'rb') as f:
-        private_key = serialization.load_pem_private_key(f.read(), password=None)
+        private_key_data = f.read()
+        print(f'🔍 Private key length: {len(private_key_data)} bytes')
+        private_key = serialization.load_pem_private_key(private_key_data, password=None)
     
     now = int(time.time())
     payload = {
@@ -21,6 +23,8 @@ def create_jwt_token(key_id, issuer_id, private_key_path):
         'exp': now + 1200,  # 20 minutes
         'aud': 'appstoreconnect-v1'
     }
+    
+    print(f'🔍 JWT Payload: {payload}')
     
     token = jwt.encode(payload, private_key, algorithm='ES256', headers={'kid': key_id})
     
@@ -84,7 +88,19 @@ def main():
         token = create_jwt_token(key_id, issuer_id, 'AuthKey_ZA7M4DJPV8.p8')
         print('✅ JWT token created successfully')
         
-        print('🔍 Calling App Store Connect API...')
+        print('🔍 Testing API connectivity first...')
+        # Test basic API access
+        test_url = 'https://api.appstoreconnect.apple.com/v1/certificates'
+        test_headers = {'Authorization': f'Bearer {token}'}
+        test_response = requests.get(test_url, headers=test_headers)
+        print(f'🔍 Test API Response: {test_response.status_code}')
+        
+        if test_response.status_code == 200:
+            print('✅ API connectivity test successful')
+        else:
+            print(f'⚠️ API test failed: {test_response.text}')
+        
+        print('🔍 Calling App Store Connect API to create certificate...')
         # Create certificate
         response = create_certificate(token, csr_content)
         
