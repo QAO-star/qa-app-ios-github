@@ -57,12 +57,15 @@ jobs:
               echo "✅ Certificate installed"
             fi
             
-            # Try P12 as backup
-            if [ -f "ios_distribution.p12" ]; then
-              echo "🔐 Trying P12 certificate as backup..."
+            # Try base64 certificate file
+            if [ -f "ios_cert_base64.txt" ]; then
+              echo "🔐 Installing certificate from base64 file..."
+              
+              # Decode base64 to p12
+              base64 --decode ios_cert_base64.txt > ios_distribution.p12
               
               # Try different password combinations
-              PASSWORDS=("Geok1800!" "" "password" "123456" "admin" "ios" "apple" "developer")
+              PASSWORDS=("" "password" "123456" "admin" "ios" "apple" "developer")
               
               for PASSWORD in "${PASSWORDS[@]}"; do
                 echo "🔐 Trying password: ${PASSWORD:-'empty'}"
