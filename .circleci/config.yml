@@ -585,6 +585,13 @@ jobs:
               echo "📥 Downloading company logo..."
               if curl -L -o company_logo.png "$LOGO_URL"; then
                 echo "✅ Company logo downloaded successfully"
+                ls -la company_logo.png
+                
+                # Install ImageMagick if not available
+                if ! command -v convert >/dev/null 2>&1; then
+                  echo "📦 Installing ImageMagick..."
+                  brew install imagemagick || echo "⚠️ Failed to install ImageMagick, using direct copy"
+                fi
                 
                 # Create app icons using ImageMagick if available
                 if command -v convert >/dev/null 2>&1; then
@@ -598,25 +605,39 @@ jobs:
                   convert company_logo.png -resize 167x167^ -gravity center -extent 167x167 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
                   
                   echo "✅ Created app icons using your company logo with ImageMagick"
+                  ls -la Payload/App.app/AppIcon*.png
                 else
                   # Fallback: Use company logo directly if ImageMagick not available
                   echo "⚠️ ImageMagick not available, using logo directly"
                   cp company_logo.png Payload/App.app/AppIcon60x60@2x.png
                   cp company_logo.png Payload/App.app/AppIcon76x76@2x~ipad.png
+                  cp company_logo.png Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
                   echo "✅ Using company logo directly for app icons"
+                  ls -la Payload/App.app/AppIcon*.png
                 fi
               else
-                echo "❌ Failed to download company logo, using existing icons"
-                # Use existing icons if available
-                if [ ! -f "Payload/App.app/AppIcon60x60@2x.png" ]; then
-                  echo "⚠️ No existing icons found, creating basic placeholder"
-                  # Create a simple colored icon as fallback
-                  if command -v convert >/dev/null 2>&1; then
-                    convert -size 120x120 xc:'#007AFF' -fill white -pointsize 36 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon60x60@2x.png
-                    convert -size 152x152 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon76x76@2x~ipad.png
-                  fi
+                echo "❌ Failed to download company logo, creating basic placeholder icons"
+                # Create simple colored icons as fallback
+                if command -v convert >/dev/null 2>&1; then
+                  convert -size 120x120 xc:'#007AFF' -fill white -pointsize 36 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon60x60@2x.png
+                  convert -size 152x152 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon76x76@2x~ipad.png
+                  convert -size 167x167 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
+                  echo "✅ Created basic placeholder icons"
+                else
+                  # Create minimal placeholder files
+                  echo "⚠️ Creating minimal icon placeholders"
+                  for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
+                    # Create a minimal valid PNG
+                    printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00x\x00\x00\x00x\x08\x02\x00\x00\x00\x91\x12\x72\xfc\x00\x00\x00\x12IDAT\x08\x99c\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "Payload/App.app/$icon"
+                  done
                 fi
+                ls -la Payload/App.app/AppIcon*.png
               fi
+              
+              # Create required Launch Screen storyboard
+              echo "📱 Creating LaunchScreen storyboard..."
+              mkdir -p Payload/App.app/Base.lproj
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21754" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">\n    <device id="retina6_12" orientation="portrait" appearance="light"/>\n    <dependencies>\n        <deployment identifier="iOS"/>\n        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21754"/>\n        <capability name="Safe area layout guides" minToolsVersion="9.0"/>\n        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>\n    </dependencies>\n    <scenes>\n        <scene sceneID="EHf-IW-A2E">\n            <objects>\n                <viewController id="01J-lp-oVM" sceneMemberID="viewController">\n                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">\n                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>\n                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>\n                        <subviews>\n                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="QA-Online" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumFontSize="18" translatesAutoresizingMaskIntoConstraints="NO" id="GJd-Yh-RWb">\n                                <rect key="frame" x="0.0" y="426" width="393" height="43"/>\n                                <fontDescription key="fontDescription" type="boldSystem" pointSize="36"/>\n                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                                <nil key="highlightedColor"/>\n                            </label>\n                        </subviews>\n                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>\n                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                        <constraints>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="QLM-P1-WfS"/>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="akx-eg-2nu"/>\n                        </constraints>\n                    </view>\n                </viewController>\n                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>\n            </objects>\n            <point key="canvasLocation" x="53" y="375"/>\n        </scene>\n    </scenes>\n</document>' > Payload/App.app/Base.lproj/LaunchScreen.storyboard
               
               # Create proper entitlements file
               echo "🔐 Creating entitlements file..."
@@ -713,8 +734,10 @@ jobs:
                 fi
               fi
               
-              # FINAL VERIFICATION - Ensure provisioning profile is still there
-              echo "🔍 FINAL VERIFICATION - Checking provisioning profile..."
+              # FINAL VERIFICATION - Ensure all required files are present
+              echo "🔍 FINAL VERIFICATION - Checking all required files..."
+              
+              # Check provisioning profile
               if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
                 echo "✅ Provisioning profile is embedded"
                 ls -la Payload/App.app/embedded.mobileprovision
@@ -723,6 +746,36 @@ jobs:
                 echo "🔧 Re-embedding provisioning profile..."
                 cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
                 echo "✅ Provisioning profile re-embedded"
+              fi
+              
+              # Check Info.plist
+              if [ -f "Payload/App.app/Info.plist" ]; then
+                echo "✅ Info.plist exists"
+                echo "🔍 Checking CFBundleIconName in Info.plist..."
+                if grep -q "CFBundleIconName" Payload/App.app/Info.plist; then
+                  echo "✅ CFBundleIconName found in Info.plist"
+                else
+                  echo "❌ CFBundleIconName missing from Info.plist!"
+                fi
+              else
+                echo "❌ CRITICAL: Info.plist missing!"
+              fi
+              
+              # Check app icons
+              echo "🔍 Checking app icons..."
+              for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png"; do
+                if [ -f "Payload/App.app/$icon" ]; then
+                  echo "✅ $icon exists ($(ls -la "Payload/App.app/$icon" | awk '{print $5}') bytes)"
+                else
+                  echo "❌ CRITICAL: $icon missing!"
+                fi
+              done
+              
+              # Check Launch Screen
+              if [ -f "Payload/App.app/Base.lproj/LaunchScreen.storyboard" ]; then
+                echo "✅ LaunchScreen.storyboard exists"
+              else
+                echo "❌ CRITICAL: LaunchScreen.storyboard missing!"
               fi
               
               # Verify the signatures
