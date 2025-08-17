@@ -296,22 +296,60 @@ jobs:
             echo '      )' >> fastlane/Fastfile
             echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
+            echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
+            echo '      system("unzip -t App-signed.ipa")' >> fastlane/Fastfile
+            echo '      system("codesign -dv --verbose=4 App-signed.ipa")' >> fastlane/Fastfile
+            echo '      UI.message("✅ IPA file integrity check completed")' >> fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
+            echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
+            echo '      begin' >> fastlane/Fastfile
+            echo '        app = api_key.get_app(bundle_id: "com.qaonline.app")' >> fastlane/Fastfile
+            echo '        UI.success("✅ App found in App Store Connect: #{app.name}")' >> fastlane/Fastfile
+            echo '      rescue => e' >> fastlane/Fastfile
+            echo '        UI.error("❌ App not found in App Store Connect: #{e.message}")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Please register the app in App Store Connect first")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
+            echo '        raise e' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
-            echo '      pilot(' >> fastlane/Fastfile
-            echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
-            echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
-            echo '        skip_submission: true,' >> fastlane/Fastfile
-            echo '        api_key: api_key' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
+            echo '      begin' >> fastlane/Fastfile
+            echo '        # Try pilot first' >> fastlane/Fastfile
+            echo '        pilot(' >> fastlane/Fastfile
+            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
+            echo '          skip_submission: true,' >> fastlane/Fastfile
+            echo '          api_key: api_key' >> fastlane/Fastfile
+            echo '        )' >> fastlane/Fastfile
+            echo '        UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
+            echo '      rescue => upload_error' >> fastlane/Fastfile
+            echo '        UI.warning("⚠️ Pilot upload failed, trying alternative method...")' >> fastlane/Fastfile
+            echo '        UI.message("🔧 Error: #{upload_error.message}")' >> fastlane/Fastfile
+            echo '        ' >> fastlane/Fastfile
+            echo '        # Try alternative upload method' >> fastlane/Fastfile
+            echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
+            echo '        deliver(' >> fastlane/Fastfile
+            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          skip_screenshots: true,' >> fastlane/Fastfile
+            echo '          skip_metadata: true,' >> fastlane/Fastfile
+            echo '          submit_for_review: false,' >> fastlane/Fastfile
+            echo '          automatic_release: false,' >> fastlane/Fastfile
+            echo '          api_key: api_key' >> fastlane/Fastfile
+            echo '        )' >> fastlane/Fastfile
+            echo '        UI.message("✅ Alternative upload method completed successfully!")' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
             echo '    rescue => e' >> fastlane/Fastfile
             echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
             echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Debug: API key authentication succeeded but pilot upload failed")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Debug: API key authentication succeeded but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
             echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Or the IPA file has metadata issues")' >> fastlane/Fastfile
             echo '      raise e' >> fastlane/Fastfile
             echo '    end' >> fastlane/Fastfile
             echo '  end' >> fastlane/Fastfile
@@ -617,26 +655,62 @@ jobs:
             echo '      )' >> fastlane/Fastfile
             echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
+            echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
+            echo '      system("unzip -t App-signed.ipa")' >> fastlane/Fastfile
+            echo '      system("codesign -dv --verbose=4 App-signed.ipa")' >> fastlane/Fastfile
+            echo '      UI.message("✅ IPA file integrity check completed")' >> fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
+            echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
+            echo '      begin' >> fastlane/Fastfile
+            echo '        app = api_key.get_app(bundle_id: "com.qaonline.app")' >> fastlane/Fastfile
+            echo '        UI.success("✅ App found in App Store Connect: #{app.name}")' >> fastlane/Fastfile
+            echo '      rescue => e' >> fastlane/Fastfile
+            echo '        UI.error("❌ App not found in App Store Connect: #{e.message}")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Please register the app in App Store Connect first")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
+            echo '        UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
+            echo '        raise e' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
-            echo '      pilot(' >> fastlane/Fastfile
-            echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
-            echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
-            echo '        skip_submission: true,' >> fastlane/Fastfile
-            echo '        api_key: api_key' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
+            echo '      begin' >> fastlane/Fastfile
+            echo '        # Try pilot first' >> fastlane/Fastfile
+            echo '        pilot(' >> fastlane/Fastfile
+            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
+            echo '          skip_submission: true,' >> fastlane/Fastfile
+            echo '          api_key: api_key' >> fastlane/Fastfile
+            echo '        )' >> fastlane/Fastfile
+            echo '        UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
+            echo '      rescue => upload_error' >> fastlane/Fastfile
+            echo '        UI.warning("⚠️ Pilot upload failed, trying alternative method...")' >> fastlane/Fastfile
+            echo '        UI.message("🔧 Error: #{upload_error.message}")' >> fastlane/Fastfile
+            echo '        ' >> fastlane/Fastfile
+            echo '        # Try alternative upload method' >> fastlane/Fastfile
+            echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
+            echo '        deliver(' >> fastlane/Fastfile
+            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          skip_screenshots: true,' >> fastlane/Fastfile
+            echo '          skip_metadata: true,' >> fastlane/Fastfile
+            echo '          submit_for_review: false,' >> fastlane/Fastfile
+            echo '          automatic_release: false,' >> fastlane/Fastfile
+            echo '          api_key: api_key' >> fastlane/Fastfile
+            echo '        )' >> fastlane/Fastfile
+            echo '        UI.message("✅ Alternative upload method completed successfully!")' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
             echo '    rescue => e' >> fastlane/Fastfile
             echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
             echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Debug: API key authentication succeeded but pilot upload failed")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Debug: API key authentication succeeded but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
             echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Or the IPA file has metadata issues")' >> fastlane/Fastfile
             echo '      raise e' >> fastlane/Fastfile
             echo '    end' >> fastlane/Fastfile
-            echo '  end' >> fastlane/Fastfile
-            echo 'end' >> fastlane/Fastfile
 
             # Create Appfile using echo commands
             echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
