@@ -3,7 +3,7 @@ version: 2.1
 executors:
   macos:
     macos:
-      xcode: "15.4.0"
+      xcode: "16.0.0"
 
 jobs:
   simple_sign_and_upload:
@@ -514,6 +514,9 @@ jobs:
             
             # If we need to create a test IPA (fallback)
             if [ "$CREATE_TEST_IPA" = "true" ]; then
+              echo "=================================================="
+              echo "🔐 CREATING TEST IPA WITH VALIDATION FIXES"
+              echo "=================================================="
               echo "🔐 Creating robust test IPA structure with a valid Mach-O executable..."
               
               # Ensure we're in the project root directory
@@ -526,7 +529,7 @@ jobs:
               
               # Create comprehensive Info.plist with all required Apple metadata
               echo "Creating complete Info.plist..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>17.5</string>\n    <key>DTSDKName</key>\n    <string>iphoneos17.5</string>\n    <key>DTSDKBuild</key>\n    <string>21F79</string>\n    <key>DTPlatformBuild</key>\n    <string>21F79</string>\n    <key>DTXcode</key>\n    <string>1540</string>\n    <key>DTXcodeBuild</key>\n    <string>15F31d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A3354</string>\n    <key>DTPlatformBuild</key>\n    <string>22A3354</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -577,6 +580,9 @@ jobs:
               chmod +x Payload/App.app/App
               
               # Create required app icons using your company logo
+              echo "=================================================="
+              echo "🎨 CREATING APP ICONS WITH YOUR COMPANY LOGO"
+              echo "=================================================="
               echo "🎨 Creating app icons using your company logo..."
               
               # Download your company logo
@@ -635,6 +641,9 @@ jobs:
               fi
               
               # Create required Launch Screen storyboard
+              echo "=================================================="
+              echo "📱 CREATING REQUIRED LAUNCHSCREEN STORYBOARD"
+              echo "=================================================="
               echo "📱 Creating LaunchScreen storyboard..."
               mkdir -p Payload/App.app/Base.lproj
               printf '<?xml version="1.0" encoding="UTF-8"?>\n<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21754" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">\n    <device id="retina6_12" orientation="portrait" appearance="light"/>\n    <dependencies>\n        <deployment identifier="iOS"/>\n        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21754"/>\n        <capability name="Safe area layout guides" minToolsVersion="9.0"/>\n        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>\n    </dependencies>\n    <scenes>\n        <scene sceneID="EHf-IW-A2E">\n            <objects>\n                <viewController id="01J-lp-oVM" sceneMemberID="viewController">\n                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">\n                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>\n                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>\n                        <subviews>\n                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="QA-Online" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumFontSize="18" translatesAutoresizingMaskIntoConstraints="NO" id="GJd-Yh-RWb">\n                                <rect key="frame" x="0.0" y="426" width="393" height="43"/>\n                                <fontDescription key="fontDescription" type="boldSystem" pointSize="36"/>\n                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                                <nil key="highlightedColor"/>\n                            </label>\n                        </subviews>\n                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>\n                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                        <constraints>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="QLM-P1-WfS"/>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="akx-eg-2nu"/>\n                        </constraints>\n                    </view>\n                </viewController>\n                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>\n            </objects>\n            <point key="canvasLocation" x="53" y="375"/>\n        </scene>\n    </scenes>\n</document>' > Payload/App.app/Base.lproj/LaunchScreen.storyboard
@@ -736,6 +745,17 @@ jobs:
               
               # FINAL VERIFICATION - Ensure all required files are present
               echo "🔍 FINAL VERIFICATION - Checking all required files..."
+              echo "🔍 Current directory: $(pwd)"
+              echo "🔍 Payload directory contents:"
+              ls -la Payload/App.app/ || echo "❌ Payload/App.app not found!"
+              echo "🔍 Icons in bundle:"
+              ls -la Payload/App.app/AppIcon*.png 2>/dev/null || echo "❌ No AppIcon files found!"
+              echo "🔍 Info.plist contents preview:"
+              if [ -f "Payload/App.app/Info.plist" ]; then
+                head -20 Payload/App.app/Info.plist || echo "❌ Could not read Info.plist"
+              else
+                echo "❌ Info.plist not found!"
+              fi
               
               # Check provisioning profile
               if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
