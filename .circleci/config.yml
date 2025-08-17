@@ -579,14 +579,14 @@ jobs:
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
             echo '        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '        key_filepath: "../../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
             echo '      )' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
-            echo '        ipa: "../App-signed.ipa",' >> fastlane/Fastfile
+            echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
             echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
             echo '        skip_submission: true,' >> fastlane/Fastfile
             echo '        api_key: api_key' >> fastlane/Fastfile
