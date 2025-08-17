@@ -307,21 +307,33 @@ jobs:
                 echo "🔍 Current directory: $(pwd)"
                 echo "🔍 Archive location: $(ls -la App.xcarchive 2>/dev/null || echo 'Archive not found in current directory')"
                 
-                if [ -f "App.xcarchive" ]; then
-                  echo "🔍 Archive found, checking contents..."
+                if [ -d "App.xcarchive" ]; then
+                  echo "✅ Archive found! Contents:"
                   ls -la App.xcarchive/
                   
-                  # Try to export using exportOptions.plist if it exists
-                  if [ -f "exportOptions.plist" ]; then
-                    echo "📦 Using exportOptions.plist for IPA export..."
-                    EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist 2>&1)
-                    EXPORT_EXIT_CODE=$?
-                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
-                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
-                      echo "❌ Export failed with output:"
-                      echo "$EXPORT_OUTPUT"
-                    fi
-                  else
+                  # Create export options for development distribution (no signing)
+                  echo "📦 Creating export options for real iOS app..."
+                  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-real.plist
+                  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-real.plist
+                  printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
+                  printf '%s\n' '<dict>' >> exportOptions-real.plist
+                  printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
+                  printf '%s\n' '    <string>development</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
+                  printf '%s\n' '    <string>manual</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
+                  printf '%s\n' '    <false/>' >> exportOptions-real.plist
+                  printf '%s\n' '</dict>' >> exportOptions-real.plist
+                  printf '%s\n' '</plist>' >> exportOptions-real.plist
+                  
+                  echo "📦 Exporting real iOS app to IPA..."
+                  EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-real.plist 2>&1)
+                  EXPORT_EXIT_CODE=$?
+                  echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
+                  if [ $EXPORT_EXIT_CODE -ne 0 ]; then
+                    echo "❌ Export failed with output:"
+                    echo "$EXPORT_OUTPUT"
+                    echo "🔧 Trying alternative export method..."
                     echo "📦 Creating exportOptions.plist for IPA export..."
                     echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
                     echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
@@ -350,8 +362,15 @@ jobs:
                     fi
                   fi
                   
-                  # Check if IPA was created
-                  if [ -f "App.ipa" ]; then
+                  # Check if IPA was created (look for any .ipa file)
+                  IPA_FILE=$(find . -name "*.ipa" -type f | head -1)
+                  if [ -n "$IPA_FILE" ]; then
+                    echo "✅ Found exported IPA: $IPA_FILE"
+                    # Move it to standard name if needed
+                    if [ "$IPA_FILE" != "./App.ipa" ]; then
+                      mv "$IPA_FILE" App.ipa
+                      echo "📱 Renamed IPA to App.ipa"
+                    fi
                     echo "✅ Real iOS app IPA extracted successfully: $(ls -la App.ipa)"
                     # Copy IPA to project root
                     cp App.ipa ../../App.ipa
@@ -543,9 +562,14 @@ jobs:
             echo "🧹 Cleaning up existing Payload directory..."
             rm -rf Payload/
             
-            # FORCE TEST IPA CREATION ALWAYS to ensure our validation fixes are applied
-            echo "🚨 FORCING TEST IPA CREATION FOR VALIDATION FIXES"
-            CREATE_TEST_IPA=true
+            # Only create test IPA if real IPA failed
+            if [ "$REAL_IPA_CREATED" = "true" ]; then
+              echo "✅ Real iOS app IPA created successfully, skipping test IPA"
+              CREATE_TEST_IPA=false
+            else
+              echo "🚨 Real IPA creation failed, forcing test IPA creation for validation fixes"
+              CREATE_TEST_IPA=true
+            fi
               fi
             else
               echo "❌ No existing iOS app structure found"
