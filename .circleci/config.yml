@@ -124,7 +124,7 @@ jobs:
               fi
               
               # Export the signing identity for the next step using CircleCI environment
-              echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $BASH_ENV
+              echo "export SIGNING_IDENTITY=\"$SIGNING_IDENTITY\"" >> $BASH_ENV
               echo "✅ Signing identity exported for next step"
             else
               echo "❌ No signing certificates found"
@@ -1313,7 +1313,7 @@ jobs:
                 echo "✅ Copied signed IPA to root: $(ls -la App-signed.ipa)"
               else
                 echo "❌ Signed IPA not found anywhere!"
-                exit 1
+              exit 1
               fi
             fi
             
