@@ -207,6 +207,9 @@ jobs:
                 
                 # Extract IPA from archive
                 echo "📦 Extracting IPA from archive..."
+                echo "🔍 Current directory: $(pwd)"
+                echo "🔍 Archive location: $(ls -la App.xcarchive 2>/dev/null || echo 'Archive not found in current directory')"
+                
                 if [ -f "App.xcarchive" ]; then
                   echo "🔍 Archive found, checking contents..."
                   ls -la App.xcarchive/
@@ -257,7 +260,9 @@ jobs:
                     fi
                   fi
                 else
-                  echo "❌ Archive not found"
+                  echo "❌ Archive not found in current directory"
+                  echo "🔍 Looking for archive in parent directories..."
+                  find . -name "App.xcarchive" -type d 2>/dev/null || echo "No archive found"
                   cd ../..
                   CREATE_TEST_IPA=true
                 fi
@@ -288,8 +293,9 @@ jobs:
             if [ "$CREATE_TEST_IPA" = "true" ]; then
               echo "🔐 Creating robust test IPA structure with a valid Mach-O executable..."
               
-              # Ensure we're in the right directory and have permissions
-              pwd
+              # Ensure we're in the project root directory
+              echo "🔍 Current directory: $(pwd)"
+              echo "🔍 Project contents:"
               ls -la
               
               # Create a simple test IPA structure
