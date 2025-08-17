@@ -82,8 +82,11 @@ jobs:
             echo "🔍 Checking available signing identities in build keychain..."
             security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
             
-            if security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
-              echo "✅ Found signing certificates"
+            # Get the actual signing identity
+            SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
+            
+            if [ -n "$SIGNING_IDENTITY" ]; then
+              echo "✅ Found signing certificate: $SIGNING_IDENTITY"
             else
               echo "❌ No signing certificates found"
               echo "⚠️ Will proceed with unsigned IPA creation"
@@ -411,14 +414,24 @@ jobs:
                     
                     echo "🔐 Code signing the real iOS app with embedded provisioning profile..."
                     
-                    # Sign embedded frameworks first
-                    echo "🔐 Signing embedded frameworks..."
-                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" Payload/App.app/Frameworks/Capacitor.framework/Capacitor
-                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" Payload/App.app/Frameworks/Cordova.framework/Cordova
+                    # Get the signing identity from the previous step
+                    SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
                     
-                    # Sign the main app bundle
-                    echo "🔐 Signing main application bundle..."
-                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" --entitlements ../../../App.entitlements Payload/App.app
+                    if [ -n "$SIGNING_IDENTITY" ]; then
+                      echo "🔐 Using signing identity: $SIGNING_IDENTITY"
+                      
+                      # Sign embedded frameworks first
+                      echo "🔐 Signing embedded frameworks..."
+                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/Frameworks/Capacitor.framework/Capacitor
+                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/Frameworks/Cordova.framework/Cordova
+                      
+                      # Sign the main app bundle
+                      echo "🔐 Signing main application bundle..."
+                      codesign --force --sign "$SIGNING_IDENTITY" --entitlements ../../../App.entitlements Payload/App.app
+                    else
+                      echo "❌ No signing identity found, skipping code signing"
+                      echo "⚠️ IPA will be unsigned"
+                    fi
                     
                     # Verify signatures
                     echo "🔍 Verifying signatures..."
