@@ -290,7 +290,7 @@ jobs:
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
             echo '        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '        key_filepath: "../../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
             echo '      )' >> fastlane/Fastfile
@@ -548,14 +548,14 @@ jobs:
             
             # Verify API key file exists
             echo "🔍 Verifying API key file exists..."
-            if [ ! -f "../../AuthKey_ZA7M4DJPV8.p8" ]; then
-              echo "❌ API key file not found at ../../AuthKey_ZA7M4DJPV8.p8"
+            if [ ! -f "AuthKey_ZA7M4DJPV8.p8" ]; then
+              echo "❌ API key file not found at AuthKey_ZA7M4DJPV8.p8"
               echo "📁 Current directory: $(pwd)"
               echo "📁 Available files in project root:"
-              ls -la ../../ | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
+              ls -la | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
               exit 1
             fi
-            echo "✅ API key file found: ../../AuthKey_ZA7M4DJPV8.p8"
+            echo "✅ API key file found: AuthKey_ZA7M4DJPV8.p8"
             
             # Setup Fastlane
             gem install fastlane
@@ -579,7 +579,7 @@ jobs:
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
             echo '        issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '        key_filepath: "../../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        key_filepath: "../AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
             echo '      )' >> fastlane/Fastfile
