@@ -80,18 +80,24 @@ jobs:
             
             # Check if installation was successful
             echo "🔍 Checking available signing identities in build keychain..."
-            security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
+            if ! security find-identity -v -p codesigning ~/Library/Keychains/build.keychain; then
+              echo "❌ Failed to list signing identities"
+              exit 1
+            fi
             
             # Get the actual signing identity - prefer App Store distribution certificate
+            echo "🔍 Looking for App Store distribution certificate..."
             SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution.*App Store|Apple Distribution" | head -1 | cut -d'"' -f2)
             
             # If no App Store certificate found, try any distribution certificate
             if [ -z "$SIGNING_IDENTITY" ]; then
+              echo "🔍 Looking for general distribution certificate..."
               SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution" | head -1 | cut -d'"' -f2)
             fi
             
             # If still no distribution certificate, try development certificate as last resort
             if [ -z "$SIGNING_IDENTITY" ]; then
+              echo "🔍 Looking for development certificate..."
               SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Development" | head -1 | cut -d'"' -f2)
             fi
             
@@ -107,8 +113,8 @@ jobs:
                 echo "⚠️ Using development certificate (will not work for App Store upload)"
               fi
               
-              # Export the signing identity for the next step
-              echo "export SIGNING_IDENTITY='$SIGNING_IDENTITY'" >> $BASH_ENV
+              # Export the signing identity for the next step using CircleCI environment
+              echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $BASH_ENV
               echo "✅ Signing identity exported for next step"
             else
               echo "❌ No signing certificates found"
