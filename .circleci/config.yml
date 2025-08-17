@@ -307,6 +307,9 @@ jobs:
             echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
             echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Debug: API key authentication succeeded but pilot upload failed")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
             echo '      raise e' >> fastlane/Fastfile
             echo '    end' >> fastlane/Fastfile
             echo '  end' >> fastlane/Fastfile
@@ -564,6 +567,18 @@ jobs:
             echo "Issuer ID: ${APP_STORE_CONNECT_ISSUER_ID}"
             echo "API Key content length: $(echo '$APP_STORE_CONNECT_API_KEY' | wc -c)"
             
+            # Check if app is registered in App Store Connect
+            echo "🔍 Checking if app is registered in App Store Connect..."
+            echo "📱 Bundle ID: com.qaonline.app"
+            echo "📱 Team ID: BL7NANM4RM"
+            echo "📱 API Key ID: ZA7M4DJPV8"
+            echo ""
+            echo "⚠️  IMPORTANT: If the upload fails, please ensure:"
+            echo "   1. App 'com.qaonline.app' is registered in App Store Connect"
+            echo "   2. API key has 'App Manager' or 'Developer' role"
+            echo "   3. Bundle ID matches exactly: com.qaonline.app"
+            echo ""
+            
             # Setup Fastlane
             gem install fastlane
             
@@ -603,6 +618,9 @@ jobs:
             echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
             echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
             echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Debug: API key authentication succeeded but pilot upload failed")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
+            echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
             echo '      raise e' >> fastlane/Fastfile
             echo '    end' >> fastlane/Fastfile
             echo '  end' >> fastlane/Fastfile
