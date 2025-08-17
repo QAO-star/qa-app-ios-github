@@ -97,6 +97,9 @@ jobs:
                 printf '%s\n' "    }" >> create_appstore_cert.py
                 printf '%s\n' "    " >> create_appstore_cert.py
                 printf '%s\n' "    token = jwt.encode(payload, private_key, algorithm='ES256', headers={'kid': key_id})" >> create_appstore_cert.py
+                printf '%s\n' "    # Ensure token is a string for newer PyJWT versions" >> create_appstore_cert.py
+                printf '%s\n' "    if isinstance(token, bytes):" >> create_appstore_cert.py
+                printf '%s\n' "        token = token.decode('utf-8')" >> create_appstore_cert.py
                 printf '%s\n' "    return token" >> create_appstore_cert.py
                 printf '%s\n' "" >> create_appstore_cert.py
                 printf '%s\n' "def create_certificate(jwt_token, csr_content):" >> create_appstore_cert.py
@@ -126,6 +129,9 @@ jobs:
                 printf '%s\n' "    key_id = os.environ.get('KEY_ID', 'ZA7M4DJPV8')" >> create_appstore_cert.py
                 printf '%s\n' "    issuer_id = os.environ.get('ISSUER_ID')" >> create_appstore_cert.py
                 printf '%s\n' "    " >> create_appstore_cert.py
+                printf '%s\n' "    print(f'🔍 Using Key ID: {key_id}')" >> create_appstore_cert.py
+                printf '%s\n' "    print(f'🔍 Using Issuer ID: {issuer_id}')" >> create_appstore_cert.py
+                printf '%s\n' "    " >> create_appstore_cert.py
                 printf '%s\n' "    if not issuer_id:" >> create_appstore_cert.py
                 printf '%s\n' "        print('❌ Missing ISSUER_ID')" >> create_appstore_cert.py
                 printf '%s\n' "        exit(1)" >> create_appstore_cert.py
@@ -134,9 +140,12 @@ jobs:
                 printf '%s\n' "    with open('ios_distribution.csr', 'r') as f:" >> create_appstore_cert.py
                 printf '%s\n' "        csr_content = f.read().strip()" >> create_appstore_cert.py
                 printf '%s\n' "    " >> create_appstore_cert.py
+                printf '%s\n' "    print('🔍 Creating JWT token...')" >> create_appstore_cert.py
                 printf '%s\n' "    # Create JWT token" >> create_appstore_cert.py
                 printf '%s\n' "    token = create_jwt_token(key_id, issuer_id, 'AuthKey_ZA7M4DJPV8.p8')" >> create_appstore_cert.py
+                printf '%s\n' "    print('✅ JWT token created successfully')" >> create_appstore_cert.py
                 printf '%s\n' "    " >> create_appstore_cert.py
+                printf '%s\n' "    print('🔍 Calling App Store Connect API...')" >> create_appstore_cert.py
                 printf '%s\n' "    # Create certificate" >> create_appstore_cert.py
                 printf '%s\n' "    response = create_certificate(token, csr_content)" >> create_appstore_cert.py
                 printf '%s\n' "    " >> create_appstore_cert.py
