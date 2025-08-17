@@ -320,14 +320,14 @@ jobs:
             # Install the private key first
             if [ -f "ios_distribution.key" ]; then
               echo "🔐 Installing private key..."
-              security import ios_distribution.key -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+              security import ios_distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
               echo "✅ Private key installed"
             fi
             
             # Install the certificate
             if [ -f "ios_distribution.cer" ]; then
               echo "🔐 Installing certificate..."
-              security import ios_distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
+              security import ios_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
               echo "✅ Certificate installed"
             fi
             
@@ -341,8 +341,8 @@ jobs:
               for PASSWORD in "${PASSWORDS[@]}"; do
                 echo "🔐 Trying password: ${PASSWORD:-'empty'}"
                 
-                # Try with login keychain
-                if security import ios_distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
+                # Try with build keychain
+                if security import ios_distribution.p12 -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
                   echo "✅ P12 certificate installed successfully with password: ${PASSWORD:-'empty'}"
                   break
                 fi
@@ -350,19 +350,19 @@ jobs:
             fi
             
             # Check if installation was successful
-            echo "🔍 Checking available signing identities..."
+            echo "🔍 Checking available signing identities in build keychain..."
+            security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
+            
+            echo "🔍 Checking available signing identities in login keychain..."
             security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
             
-            if security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
+            if security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" >/dev/null || \
+               security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
               echo "✅ Found signing certificates"
             else
               echo "❌ No signing certificates found"
               echo "⚠️ Will proceed with unsigned IPA creation"
             fi
-            
-            # Show available signing identities
-            echo "🔍 Available signing identities:"
-            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
       
       - run:
           name: "Sign the IPA"
@@ -387,10 +387,16 @@ jobs:
             echo "🔐 Signing with certificate hash..."
             
             # Get the certificate hash - more robust approach
-            echo "🔍 Available identities:"
-            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+            echo "🔍 Available identities in build keychain:"
+            security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
             
-            CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+            # Try build keychain first, then fallback to login keychain
+            CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+            if [ -z "$CERT_HASH" ]; then
+              echo "🔍 No certificate in build keychain, trying login keychain:"
+              security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
+              CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+            fi
             echo "🔍 Certificate hash: '$CERT_HASH'"
             
             if [ -z "$CERT_HASH" ]; then
@@ -403,7 +409,7 @@ jobs:
               exit 1
             fi
             
-            echo "🔍 Running: codesign --force --sign '$CERT_HASH' --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app"
+            echo "🔍 Running: codesign --force --sign '$CERT_HASH' Payload/App.app"
             
             # Simple approach: Create signed IPA directly
             echo "🔧 Creating signed IPA with embedded provisioning profile..."
@@ -413,20 +419,25 @@ jobs:
             
             # Configure keychain access for codesign
             echo "🔧 Configuring keychain access for codesign..."
-            security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
-            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db
-            security default-keychain -s ~/Library/Keychains/login.keychain-db
+            
+            # Use the build keychain that was created earlier with known password
+            security unlock-keychain -p "temp" ~/Library/Keychains/build.keychain
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" ~/Library/Keychains/build.keychain
+            security default-keychain -s ~/Library/Keychains/build.keychain
+            
+            # Also try to unlock login keychain without password (for system certs)
+            security unlock-keychain ~/Library/Keychains/login.keychain-db || echo "⚠️ Could not unlock login keychain"
             
             # Try codesign with the actual certificate hash
             echo "🔐 Attempting codesign with certificate hash: $CERT_HASH"
-            if codesign --force --sign "$CERT_HASH" Payload/App.app 2>/dev/null; then
+            if codesign --force --sign "$CERT_HASH" Payload/App.app; then
               echo "✅ Successfully signed with certificate hash"
             else
               echo "⚠️ Certificate hash signing failed, trying with identity name..."
-              # Try with the full identity name
-              IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+              # Try with the full identity name  
+              IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
               echo "🔐 Trying with identity name: $IDENTITY_NAME"
-              if codesign --force --sign "$IDENTITY_NAME" Payload/App.app 2>/dev/null; then
+              if codesign --force --sign "$IDENTITY_NAME" Payload/App.app; then
                 echo "✅ Successfully signed with identity name"
               else
                 echo "⚠️ All signing attempts failed, creating unsigned IPA..."
@@ -436,7 +447,7 @@ jobs:
                 rm -rf Payload/
                 echo "📦 Created unsigned IPA: App-unsigned.ipa"
                 echo "📱 Manual signing required with:"
-                echo "   codesign --force --sign '$CERT_HASH' App-unsigned.ipa"
+                echo "   codesign --force --sign '$CERT_HASH' Payload/App.app"
                 echo "⚠️ Proceeding with unsigned IPA for upload..."
                 exit 0
               fi
