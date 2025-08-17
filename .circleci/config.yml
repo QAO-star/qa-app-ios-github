@@ -3,7 +3,7 @@ version: 2.1
 executors:
   macos:
     macos:
-      xcode: "15.4.0"
+      xcode: "16.0.0"
 
 jobs:
   simple_sign_and_upload:
@@ -526,7 +526,7 @@ jobs:
               
               # Create comprehensive Info.plist with all required Apple metadata
               echo "Creating complete Info.plist..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>17.5</string>\n    <key>DTSDKName</key>\n    <string>iphoneos17.5</string>\n    <key>DTSDKBuild</key>\n    <string>21F79</string>\n    <key>DTPlatformBuild</key>\n    <string>21F79</string>\n    <key>DTXcode</key>\n    <string>1540</string>\n    <key>DTXcodeBuild</key>\n    <string>15F31d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A380</string>\n    <key>DTPlatformBuild</key>\n    <string>22A380</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -575,6 +575,45 @@ jobs:
               fi
               
               chmod +x Payload/App.app/App
+              
+              # Create required app icons using your company logo
+              echo "🎨 Creating app icons using your company logo..."
+              
+              # Download your company logo
+              LOGO_URL="https://lh3.googleusercontent.com/XOy7immRJBBfHefWlrJngHqwuIjeai8sBkF_Y6jm_Tie4rIP3nnHqkNCPVqJ5joro78wpYWwnaq_1z0_jxK-ag"
+              
+              echo "📥 Downloading company logo..."
+              if curl -L -o company_logo.png "$LOGO_URL"; then
+                echo "✅ Company logo downloaded successfully"
+                
+                # Create app icons using ImageMagick if available
+                if command -v convert >/dev/null 2>&1; then
+                  echo "🔧 Creating iPhone app icon (120x120)..."
+                  convert company_logo.png -resize 120x120^ -gravity center -extent 120x120 Payload/App.app/AppIcon60x60@2x.png
+                  
+                  echo "🔧 Creating iPad app icon (152x152)..."  
+                  convert company_logo.png -resize 152x152^ -gravity center -extent 152x152 Payload/App.app/AppIcon76x76@2x~ipad.png
+                  
+                  echo "✅ Created app icons using your company logo with ImageMagick"
+                else
+                  # Fallback: Use company logo directly if ImageMagick not available
+                  echo "⚠️ ImageMagick not available, using logo directly"
+                  cp company_logo.png Payload/App.app/AppIcon60x60@2x.png
+                  cp company_logo.png Payload/App.app/AppIcon76x76@2x~ipad.png
+                  echo "✅ Using company logo directly for app icons"
+                fi
+              else
+                echo "❌ Failed to download company logo, using existing icons"
+                # Use existing icons if available
+                if [ ! -f "Payload/App.app/AppIcon60x60@2x.png" ]; then
+                  echo "⚠️ No existing icons found, creating basic placeholder"
+                  # Create a simple colored icon as fallback
+                  if command -v convert >/dev/null 2>&1; then
+                    convert -size 120x120 xc:'#007AFF' -fill white -pointsize 36 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon60x60@2x.png
+                    convert -size 152x152 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon76x76@2x~ipad.png
+                  fi
+                fi
+              fi
               
               # Create proper entitlements file
               echo "🔐 Creating entitlements file..."
@@ -854,6 +893,10 @@ jobs:
               echo "🔧 Using Apple altool for upload..."
               
               # Try altool as fallback (works better in headless environments)
+              # Copy API key to expected location for altool
+              mkdir -p ~/.appstoreconnect/private_keys
+              cp AuthKey_GFAD2LJGMF.p8 ~/.appstoreconnect/private_keys/
+              
               xcrun altool --upload-app --type ios --file App-signed.ipa \
                 --apiKey GFAD2LJGMF \
                 --apiIssuer ebf8afbb-9400-43d1-8a48-66d148957a62 \
