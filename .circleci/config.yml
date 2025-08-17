@@ -420,14 +420,15 @@ jobs:
                     if [ -n "$SIGNING_IDENTITY" ]; then
                       echo "🔐 Using signing identity: $SIGNING_IDENTITY"
                       
-                      # Sign only the main app bundle to avoid hanging
-                      echo "🔐 Signing main application bundle only..."
-                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app
+                      # Try to sign with timeout to avoid hanging
+                      echo "🔐 Attempting to sign main application bundle..."
                       
-                      if [ $? -eq 0 ]; then
+                      # Use timeout to prevent hanging (30 seconds)
+                      if timeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
                         echo "✅ Main app signed successfully"
                       else
-                        echo "❌ Main app signing failed, continuing with unsigned IPA"
+                        echo "❌ Code signing failed or timed out, continuing with unsigned IPA"
+                        echo "⚠️ IPA will be unsigned but should still be valid for upload"
                       fi
                     else
                       echo "❌ No signing identity found, skipping code signing"
