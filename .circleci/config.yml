@@ -666,17 +666,16 @@ jobs:
                 fi
                 cd ios/App  # Go back to iOS project directory
                 
-                # Set development team and code signing style for App target
+                # Set development team and use AUTOMATIC code signing to let Xcode generate compatible profile
                 sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
-                sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
-                # Clean up any existing provisioning profile specifiers first
+                sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
+                sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Code sign style already automatic"
+                
+                # Clean up any existing provisioning profile specifiers to let Xcode auto-generate
                 sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
                 sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
                 
-                # Set the specific provisioning profile UUID for the App target only
-                sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;\
-                PROVISIONING_PROFILE_SPECIFIER = "'"$PROFILE_SPECIFIER"'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile specifier"
-                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and profile $PROFILE_SPECIFIER"
+                echo "✅ Project configured for AUTOMATIC signing with team $APPLE_TEAM_ID (Xcode will auto-generate compatible provisioning profile)"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
@@ -684,9 +683,9 @@ jobs:
                 
                 # Capture both stdout and stderr, but also show real-time output
                 # Use proper code signing with our Apple Distribution certificate
-                # Apply team ID and code signing identity globally, but let Xcode auto-select provisioning profile
-                # The project settings will handle the specific provisioning profile for the App target
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" CODE_SIGN_STYLE="Manual" 2>&1 | tee /dev/stderr)
+                # Use automatic code signing with our Apple Distribution certificate
+                # Xcode will automatically generate a compatible provisioning profile
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
