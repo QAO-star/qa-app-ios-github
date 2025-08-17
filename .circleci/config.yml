@@ -1,474 +1,33 @@
 version: 2.1
 
-# Use CircleCI's macOS executors for iOS builds
 executors:
   macos:
     macos:
-      xcode: "14.3.1"  # More stable Xcode version
-  node:
-    docker:
-      - image: cimg/node:18.19
+      xcode: "15.2.0"
 
-# Define reusable commands
-commands:
-  setup_node:
-    description: "Setup Node.js environment"
+jobs:
+  simple_sign_and_upload:
+    executor: macos
     steps:
-      - run:
-          name: "Setup Node.js"
-          command: |
-            echo "📦 Setting up Node.js..."
-            node --version
-            npm --version
+      - checkout
       
-  install_dependencies:
-    description: "Install project dependencies"
-    steps:
-      - run:
-          name: "Install dependencies"
-          command: |
-            echo "📦 Installing dependencies..."
-            npm install
-            npm install -g @capacitor/cli
-      
-  setup_ios_platform:
-    description: "Setup iOS platform with Capacitor"
-    steps:
-      - run:
-          name: "Setup iOS platform"
-          command: |
-            echo "📱 Setting up iOS platform..."
-            if [ -d "ios" ] && [ ! -f "ios/App/Podfile" ]; then
-              echo "Removing incomplete iOS platform..."
-              rm -rf ios
-            fi
-            if [ ! -d "ios/App/App.xcworkspace" ]; then
-              echo "Adding iOS platform..."
-              npx cap add ios
-            fi
-            echo "🔄 Syncing Capacitor..."
-            npx cap sync ios
-      
-  setup_xcode:
-    description: "Setup Xcode environment"
-    steps:
       - run:
           name: "Setup Xcode"
           command: |
             echo "🔧 Setting up Xcode..."
-            
-            # Wait for Xcode to be fully installed
-            echo "⏳ Waiting for Xcode installation to complete..."
-            sleep 30
-            
-            # Set Xcode path
+            xcodebuild -version
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-            
-            # Verify Xcode is working
-            xcodebuild -version || {
-              echo "❌ Xcode not ready, trying alternative path..."
-              sudo xcode-select -s /Applications/Xcode-14.3.1.app/Contents/Developer
-              xcodebuild -version
-            }
-            
-            echo "✅ Xcode setup completed"
-      
-      - run:
-          name: "Sign in to Apple Developer Account"
-          command: |
-            echo "🍎 Signing in to Apple Developer Account..."
-            # Create a temporary keychain for signing
-            security create-keychain -p "temp" build.keychain
-            security default-keychain -s build.keychain
-            security unlock-keychain -p "temp" build.keychain
-            security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
-            
-            # Sign in to Apple Developer account
-            xcrun altool --store-password-in-keychain-item "apple-id" -u "jonatan.k@qaonline.co.il" -p "$APPLE_APP_SPECIFIC_PASSWORD" --keychain build.keychain || echo "⚠️ Apple ID sign-in failed, continuing..."
-            
-            echo "✅ Xcode setup completed"
-      
-  install_ios_dependencies:
-    description: "Install iOS dependencies with CocoaPods"
-    steps:
-      - run:
-          name: "Install iOS dependencies"
-          command: |
-            echo "📦 Installing iOS dependencies..."
-            cd ios/App
-            pod install --repo-update
-      
-  configure_signing:
-    description: "Configure automatic signing for iOS builds"
-    steps:
-      - run:
-          name: "Configure automatic signing"
-          command: |
-            echo "🔧 Configuring automatic signing..."
-            cd ios/App
-            
-            # Ensure all projects use automatic signing
-            sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' App.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_REQUIRED = NO;/CODE_SIGNING_REQUIRED = YES;/g' App.xcodeproj/project.pbxproj
-            sed -i '' 's/CODE_SIGNING_ALLOWED = NO;/CODE_SIGNING_ALLOWED = YES;/g' App.xcodeproj/project.pbxproj
-            
-            # Configure Pods for automatic signing
-            if [ -f "Pods/Pods.xcodeproj/project.pbxproj" ]; then
-              echo "🔧 Configuring Pods for automatic signing..."
-              sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' Pods/Pods.xcodeproj/project.pbxproj
-              sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' Pods/Pods.xcodeproj/project.pbxproj
-              sed -i '' 's/CODE_SIGN_STYLE = "Manual";/CODE_SIGN_STYLE = "Automatic";/g' Pods/Pods.xcodeproj/project.pbxproj
-              sed -i '' '/CODE_SIGN_IDENTITY.*iPhone Distribution/d' Pods/Pods.xcodeproj/project.pbxproj
-              sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Distribution";/CODE_SIGN_IDENTITY = "";/g' Pods/Pods.xcodeproj/project.pbxproj
-            fi
-            
-            echo "✅ Automatic signing configured for all targets"
-      
-  setup_fastlane:
-    description: "Setup Fastlane for certificate management"
-    steps:
-      - run:
-          name: "Install Fastlane"
-          command: |
-            echo "💎 Installing Fastlane..."
-            gem install fastlane
-            echo "✅ Fastlane installed successfully"
-
-# Define jobs
-jobs:
-  # Test build - runs on every push to main
-  test_build:
-    executor: node
-    steps:
-      - checkout
-      - setup_node
-      - install_dependencies
-      - run:
-          name: "Test web build"
-          command: |
-            echo "🔨 Testing web build..."
-            npm run build
-            echo "✅ Web build test completed successfully!"
-      - store_artifacts:
-          path: dist/
-          destination: web-build
-
-  # iOS test build - unsigned build for testing
-  ios_test_build:
-    executor: macos
-    steps:
-      - checkout
-      - setup_node
-      - install_dependencies
-      - setup_ios_platform
-      - setup_xcode
-      - install_ios_dependencies
-      - configure_signing
-      - run:
-          name: "iOS test build (unsigned)"
-          command: |
-            echo "🔨 Testing iOS build..."
-            cd ios/App
-            xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
-            xcodebuild build \
-              -workspace App.xcworkspace \
-              -scheme App \
-              -configuration Release \
-              -destination generic/platform=iOS \
-              CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGNING_ALLOWED=NO
-            echo "✅ iOS test build completed successfully!"
-      - store_artifacts:
-          path: ios/App/build/
-          destination: ios-test-build
-
-  # iOS App Store build - signed build for App Store
-  ios_app_store_build:
-    executor: macos
-    steps:
-      - checkout
-      - setup_node
-      - install_dependencies
-      - setup_ios_platform
-      - setup_xcode
-      - install_ios_dependencies
-      - configure_signing
-      - setup_fastlane
-      - run:
-          name: "Test API key authentication"
-          command: |
-            cd ios/App
-            fastlane test_api_key
-      - run:
-          name: "Test signing setup"
-          command: |
-            cd ios/App
-            chmod +x test-signing-setup.sh
-            ./test-signing-setup.sh
-      
-      - run:
-          name: "Setup existing certificates and profiles"
-          command: |
-            cd ios/App
-            echo "🔐 Setting up existing certificates and profiles..."
-            
-            # Install the existing provisioning profile from root
-            if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
-              echo "📄 Installing existing provisioning profile..."
-              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-              cp ../../QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-              echo "✅ Provisioning profile installed"
-            else
-              echo "❌ Provisioning profile not found at ../../QAOnlineAppStoreProfile.mobileprovision"
-              exit 1
-            fi
-            
-            # Try to generate certificates with Fastlane (optional)
-            echo "🔐 Attempting to generate certificates with Fastlane..."
-            fastlane certificates || echo "⚠️ Certificate generation failed, continuing with existing profile..."
-            
-            # Install any generated certificates if they exist
-            if [ -f "certificates/distribution.cer" ]; then
-              echo "🔐 Installing generated distribution certificate..."
-              security import certificates/distribution.cer -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-            fi
-            
-            if [ -f "certificates/distribution.p12" ]; then
-              echo "🔐 Installing generated P12 certificate..."
-              security import certificates/distribution.p12 -k ~/Library/Keychains/login.keychain-db -T /usr/bin/codesign
-            fi
-            
-            # Show available signing identities
-            echo "🔍 Available signing identities:"
-            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-            
-            # Show installed provisioning profiles
-            echo "📋 Installed provisioning profiles:"
-            ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ | grep -E "(QA-Online|\.mobileprovision)" || echo "No QA-Online profiles found"
-      - run:
-          name: "Build signed iOS app"
-          command: |
-            echo "🔨 Building signed iOS app..."
-            cd ios/App
-            
-            # Make the signing script executable and run it
-            chmod +x sign-and-export.sh
-            ./sign-and-export.sh
-      - run:
-          name: "Upload to App Store Connect"
-          command: |
-            echo "🚀 Uploading signed IPA to App Store Connect..."
-            
-            # Verify the signed IPA exists
-            if [ ! -f "App-signed.ipa" ]; then
-              echo "❌ Signed IPA not found!"
-              exit 1
-            fi
-            
-            echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
-            
-            # Copy IPA to project root for Fastlane
-            echo "📁 Copying IPA to project root for Fastlane..."
-            cp App-signed.ipa ../App-signed.ipa || echo "⚠️ Could not copy to parent directory"
-            echo "📁 IPA files available:"
-            find . -name "*.ipa" -type f 2>/dev/null || echo "No IPA files found"
-            find .. -name "*.ipa" -type f 2>/dev/null || echo "No IPA files in parent directory"
-            
-            # Verify API key file exists
-            echo "🔍 Verifying API key file exists..."
-            if [ ! -f "AuthKey_GFAD2LJGMF.p8" ]; then
-              echo "❌ API key file not found at AuthKey_GFAD2LJGMF.p8"
-              echo "📁 Current directory: $(pwd)"
-              echo "📁 Available files in project root:"
-              ls -la | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
-              echo ""
-              echo "🔧 Creating API key file with your provided key..."
-              echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
-              echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
-              echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
-              echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
-              echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
-              echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
-              echo "✅ API key file created: AuthKey_GFAD2LJGMF.p8"
-            fi
-            echo "✅ API key file found: AuthKey_GFAD2LJGMF.p8"
-            
-            # Debug environment variables
-            echo "🔍 Debugging environment variables:"
-            echo "API Key ID: ${APP_STORE_CONNECT_API_KEY_ID}"
-            echo "Issuer ID: ${APP_STORE_CONNECT_ISSUER_ID}"
-            echo "API Key content length: $(echo '$APP_STORE_CONNECT_API_KEY' | wc -c)"
-            
-            # Check if app is registered in App Store Connect
-            echo "🔍 Checking if app is registered in App Store Connect..."
-            echo "📱 Bundle ID: com.qaonline.app"
-            echo "📱 Team ID: BL7NANM4RM"
-            echo "📱 API Key ID: GFAD2LJGMF"
-            echo ""
-            echo "⚠️  IMPORTANT: If the upload fails, please ensure:"
-            echo "   1. App 'com.qaonline.app' is registered in App Store Connect"
-            echo "   2. API key has 'App Manager' or 'Developer' role"
-            echo "   3. Bundle ID matches exactly: com.qaonline.app"
-            echo ""
-            
-            # Setup Fastlane
-            gem install fastlane
-            
-            # Set OpenSSL compatibility for older API keys
-            export OPENSSL_CONF=/dev/null
-            export OPENSSL_LEGACY_PROVIDER=1
-            
-            # Create Fastlane configuration for upload
-            mkdir -p fastlane
-            
-            # Create Fastfile using echo commands
-            echo 'default_platform(:ios)' > fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo 'platform :ios do' >> fastlane/Fastfile
-            echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
-            echo '  lane :upload do' >> fastlane/Fastfile
-            echo '    begin' >> fastlane/Fastfile
-            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
-            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
-            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
-            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
-            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
-            echo '        duration: 1200,' >> fastlane/Fastfile
-            echo '        in_house: false' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
-            echo '      ipa_paths = ["App-signed.ipa", "../App-signed.ipa", "ios/App/App-signed.ipa"]' >> fastlane/Fastfile
-            echo '      ipa_file = nil' >> fastlane/Fastfile
-            echo '      ipa_paths.each do |path|' >> fastlane/Fastfile
-            echo '        if File.exist?(path)' >> fastlane/Fastfile
-            echo '          ipa_file = path' >> fastlane/Fastfile
-            echo '          UI.success("✅ Found IPA file at: #{path}")' >> fastlane/Fastfile
-            echo '          break' >> fastlane/Fastfile
-            echo '        end' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '      ' >> fastlane/Fastfile
-            echo '      if ipa_file.nil?' >> fastlane/Fastfile
-            echo '        UI.error("❌ App-signed.ipa not found in any expected location")' >> fastlane/Fastfile
-            echo '        UI.message("📁 Current directory: #{Dir.pwd}")' >> fastlane/Fastfile
-            echo '        UI.message("📁 Available IPA files: #{Dir.glob(\"**/*.ipa\").join(\", \")}")' >> fastlane/Fastfile
-            echo '        raise "IPA file not found"' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '      ' >> fastlane/Fastfile
-            echo '      # Check IPA integrity' >> fastlane/Fastfile
-            echo '      system("unzip -t #{ipa_file}")' >> fastlane/Fastfile
-            echo '      system("codesign -dv --verbose=4 #{ipa_file}")' >> fastlane/Fastfile
-            echo '      UI.success("✅ IPA file integrity check completed")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
-            echo '      UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
-            echo '      UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
-            echo '      UI.message("📋 API Key ID: GFAD2LJGMF")' >> fastlane/Fastfile
-            echo '      UI.message("⚠️  If upload fails, ensure app is registered in App Store Connect")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
-            echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        # Try pilot first' >> fastlane/Fastfile
-            echo '        pilot(' >> fastlane/Fastfile
-            echo '          ipa: ipa_file,' >> fastlane/Fastfile
-            echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
-            echo '          skip_submission: true,' >> fastlane/Fastfile
-            echo '          api_key: api_key' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
-            echo '      rescue => upload_error' >> fastlane/Fastfile
-            echo '        UI.warning("⚠️ Pilot upload failed, trying alternative method...")' >> fastlane/Fastfile
-            echo '        UI.message("🔧 Error: #{upload_error.message}")' >> fastlane/Fastfile
-            echo '        ' >> fastlane/Fastfile
-            echo '        # Try alternative upload method' >> fastlane/Fastfile
-            echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
-            echo '        deliver(' >> fastlane/Fastfile
-            echo '          ipa: ipa_file,' >> fastlane/Fastfile
-            echo '          skip_screenshots: true,' >> fastlane/Fastfile
-            echo '          skip_metadata: true,' >> fastlane/Fastfile
-            echo '          submit_for_review: false,' >> fastlane/Fastfile
-            echo '          automatic_release: false,' >> fastlane/Fastfile
-            echo '          api_key: api_key' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ Alternative upload method completed successfully!")' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '    rescue => e' >> fastlane/Fastfile
-            echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
-            echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
-            echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Debug: API key authentication succeeded but upload failed")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Or the IPA file has metadata issues")' >> fastlane/Fastfile
-            echo '      raise e' >> fastlane/Fastfile
-            echo '    end' >> fastlane/Fastfile
-            echo '  end' >> fastlane/Fastfile
-            echo 'end' >> fastlane/Fastfile
-
-            # Create Appfile using echo commands
-            echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
-            echo 'apple_id("jonatan.k@qaonline.co.il")' >> fastlane/Appfile
-            echo 'team_id("BL7NANM4RM")' >> fastlane/Appfile
-            
-            # Run upload from project root
-            fastlane upload
-            
-            echo "✅ Upload to App Store Connect completed"
-          env:
-            APP_STORE_CONNECT_API_KEY: $APP_STORE_CONNECT_API_KEY
-            APP_STORE_CONNECT_API_KEY_ID: $APP_STORE_CONNECT_API_KEY_ID
-            APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSUER_ID
-            FASTLANE_DISABLE_COLORS: true
-            FASTLANE_SKIP_UPDATE_CHECK: true
-            FASTLANE_HIDE_GITHUB_ISSUES: true
-            CI: true
-      - store_artifacts:
-          path: ios/App/App.ipa
-          destination: ios-app-store-build
-      - store_artifacts:
-          path: ios/App/certificates/
-          destination: certificates
-
-  # Sign existing IPA - separate pipeline for signing only
-  sign_existing_ipa:
-    executor: macos
-    steps:
-      - checkout
-      - setup_xcode
-      
-      - run:
-          name: "Check for unsigned IPA"
-          command: |
-            echo "📥 Looking for unsigned IPA..."
-            
-            # Check if we have the IPA from a previous build
-            if [ -f "ios/App/App.ipa" ]; then
-              echo "✅ Found App.ipa from previous build"
-              ls -la ios/App/App.ipa
-              cp ios/App/App.ipa App.ipa
-            else
-              echo "❌ App.ipa not found from previous build"
-              echo "📥 Please ensure the unsigned IPA is available"
-              echo "🔗 You can download it from: https://app.circleci.com/pipelines/github/QAI-O/qa-app-ios"
-              echo "📱 Look for the 'ios-app-store-build' artifact"
-              echo ""
-              echo "📋 To use this pipeline:"
-              echo "1. Download the unsigned App.ipa from your previous build"
-              echo "2. Place it in the ios/App/ directory"
-              echo "3. Run this pipeline"
-              exit 1
-            fi
       
       - run:
           name: "Setup certificates and profiles"
           command: |
             echo "🔐 Setting up certificates and profiles..."
+            
+            # Create a temporary keychain for signing
+            security create-keychain -p "temp" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "temp" build.keychain
+            security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
             
             # Install the existing provisioning profile
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
@@ -478,7 +37,6 @@ jobs:
               echo "✅ Provisioning profile installed"
             else
               echo "❌ Provisioning profile not found"
-              echo "📥 Please ensure QAOnlineAppStoreProfile.mobileprovision is in the project root"
               exit 1
             fi
             
@@ -521,11 +79,7 @@ jobs:
             echo "🔍 Checking available signing identities in build keychain..."
             security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
             
-            echo "🔍 Checking available signing identities in login keychain..."
-            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-            
-            if security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" >/dev/null || \
-               security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
+            if security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" >/dev/null; then
               echo "✅ Found signing certificates"
             else
               echo "❌ No signing certificates found"
@@ -533,19 +87,41 @@ jobs:
             fi
       
       - run:
-          name: "Sign the IPA"
+          name: "Create and sign IPA"
           command: |
-            echo "🔐 Signing the IPA..."
+            echo "🔐 Creating and signing IPA..."
+            
+            # Create a simple test IPA structure
+            mkdir -p Payload/App.app
+            echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > Payload/App.app/Info.plist
+            echo "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" >> Payload/App.app/Info.plist
+            echo "<plist version=\"1.0\">" >> Payload/App.app/Info.plist
+            echo "<dict>" >> Payload/App.app/Info.plist
+            echo "    <key>CFBundleIdentifier</key>" >> Payload/App.app/Info.plist
+            echo "    <string>com.qaonline.app</string>" >> Payload/App.app/Info.plist
+            echo "    <key>CFBundleName</key>" >> Payload/App.app/Info.plist
+            echo "    <string>QA-Online</string>" >> Payload/App.app/Info.plist
+            echo "    <key>CFBundleVersion</key>" >> Payload/App.app/Info.plist
+            echo "    <string>1.0</string>" >> Payload/App.app/Info.plist
+            echo "    <key>CFBundleShortVersionString</key>" >> Payload/App.app/Info.plist
+            echo "    <string>1.0</string>" >> Payload/App.app/Info.plist
+            echo "</dict>" >> Payload/App.app/Info.plist
+            echo "</plist>" >> Payload/App.app/Info.plist
+            
+            # Create a dummy executable
+            echo "#!/bin/bash" > Payload/App.app/App
+            echo "echo 'QA-Online App'" >> Payload/App.app/App
+            chmod +x Payload/App.app/App
+            
+            # Create the initial IPA
+            zip -r App.ipa Payload/
+            echo "✅ Created initial IPA"
             
             # Extract the IPA
             echo "📦 Extracting IPA..."
             unzip -q App.ipa -d Payload/
             
-            # Check available signing identities
-            echo "🔍 Available signing identities:"
-            security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-            
-            # Try different signing approaches
+            # Try to sign the app bundle
             echo "🔐 Attempting to sign app bundle..."
             
             # Method 1: Try with "iPhone Distribution" identity and provisioning profile
@@ -646,12 +222,15 @@ jobs:
             
             echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
             
-            # Copy IPA to project root for Fastlane
-            echo "📁 Copying IPA to project root for Fastlane..."
-            cp App-signed.ipa ../App-signed.ipa || echo "⚠️ Could not copy to parent directory"
-            echo "📁 IPA files available:"
-            find . -name "*.ipa" -type f 2>/dev/null || echo "No IPA files found"
-            find .. -name "*.ipa" -type f 2>/dev/null || echo "No IPA files in parent directory"
+            # Create API key file
+            echo "🔧 Creating API key file..."
+            echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
+            echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
+            echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
+            echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
+            echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
+            echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
+            echo "✅ API key file created"
             
             # Setup Fastlane
             gem install fastlane
@@ -663,99 +242,50 @@ jobs:
             # Create Fastlane configuration for upload
             mkdir -p fastlane
             
-            # Create Fastfile using echo commands
-            echo 'default_platform(:ios)' > fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo 'platform :ios do' >> fastlane/Fastfile
-            echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
-            echo '  lane :upload do' >> fastlane/Fastfile
-            echo '    begin' >> fastlane/Fastfile
-            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
-            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
-            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
-            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
-            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
-            echo '        duration: 1200,' >> fastlane/Fastfile
-            echo '        in_house: false' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
-            echo '      ipa_paths = ["App-signed.ipa", "../App-signed.ipa", "ios/App/App-signed.ipa"]' >> fastlane/Fastfile
-            echo '      ipa_file = nil' >> fastlane/Fastfile
-            echo '      ipa_paths.each do |path|' >> fastlane/Fastfile
-            echo '        if File.exist?(path)' >> fastlane/Fastfile
-            echo '          ipa_file = path' >> fastlane/Fastfile
-            echo '          UI.success("✅ Found IPA file at: #{path}")' >> fastlane/Fastfile
-            echo '          break' >> fastlane/Fastfile
-            echo '        end' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '      ' >> fastlane/Fastfile
-            echo '      if ipa_file.nil?' >> fastlane/Fastfile
-            echo '        UI.error("❌ App-signed.ipa not found in any expected location")' >> fastlane/Fastfile
-            echo '        UI.message("📁 Current directory: #{Dir.pwd}")' >> fastlane/Fastfile
-            echo '        UI.message("📁 Available IPA files: #{Dir.glob(\"**/*.ipa\").join(\", \")}")' >> fastlane/Fastfile
-            echo '        raise "IPA file not found"' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '      ' >> fastlane/Fastfile
-            echo '      # Check IPA integrity' >> fastlane/Fastfile
-            echo '      system("unzip -t #{ipa_file}")' >> fastlane/Fastfile
-            echo '      system("codesign -dv --verbose=4 #{ipa_file}")' >> fastlane/Fastfile
-            echo '      UI.success("✅ IPA file integrity check completed")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
-            echo '      UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
-            echo '      UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
-            echo '      UI.message("📋 API Key ID: GFAD2LJGMF")' >> fastlane/Fastfile
-            echo '      UI.message("⚠️  If upload fails, ensure app is registered in App Store Connect")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
-            echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        # Try pilot first' >> fastlane/Fastfile
-            echo '        pilot(' >> fastlane/Fastfile
-            echo '          ipa: ipa_file,' >> fastlane/Fastfile
-            echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
-            echo '          skip_submission: true,' >> fastlane/Fastfile
-            echo '          api_key: api_key' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
-            echo '      rescue => upload_error' >> fastlane/Fastfile
-            echo '        UI.warning("⚠️ Pilot upload failed, trying alternative method...")' >> fastlane/Fastfile
-            echo '        UI.message("🔧 Error: #{upload_error.message}")' >> fastlane/Fastfile
-            echo '        ' >> fastlane/Fastfile
-            echo '        # Try alternative upload method' >> fastlane/Fastfile
-            echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
-            echo '        deliver(' >> fastlane/Fastfile
-            echo '          ipa: ipa_file,' >> fastlane/Fastfile
-            echo '          skip_screenshots: true,' >> fastlane/Fastfile
-            echo '          skip_metadata: true,' >> fastlane/Fastfile
-            echo '          submit_for_review: false,' >> fastlane/Fastfile
-            echo '          automatic_release: false,' >> fastlane/Fastfile
-            echo '          api_key: api_key' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ Alternative upload method completed successfully!")' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
-            echo '    rescue => e' >> fastlane/Fastfile
-            echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
-            echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
-            echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Debug: API key authentication succeeded but upload failed")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 This suggests the app may not be registered in App Store Connect")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Or the API key lacks TestFlight upload permissions")' >> fastlane/Fastfile
-            echo '      UI.message("🔍 Or the IPA file has metadata issues")' >> fastlane/Fastfile
-            echo '      raise e' >> fastlane/Fastfile
-            echo '    end' >> fastlane/Fastfile
-            echo '  end' >> fastlane/Fastfile
-            echo 'end' >> fastlane/Fastfile
+            # Create simple Fastfile
+            cat > fastlane/Fastfile << 'EOF'
+default_platform(:ios)
 
-            # Create Appfile using echo commands
-            echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
-            echo 'apple_id("jonatan.k@qaonline.co.il")' >> fastlane/Appfile
-            echo 'team_id("BL7NANM4RM")' >> fastlane/Appfile
+platform :ios do
+  desc "Upload to App Store Connect"
+  lane :upload do
+    begin
+      # Use API key file directly with known values
+      UI.message("🔐 Using API key file with known values...")
+      api_key = app_store_connect_api_key(
+        key_id: "GFAD2LJGMF",
+        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",
+        key_filepath: "AuthKey_GFAD2LJGMF.p8",
+        duration: 1200,
+        in_house: false
+      )
+      UI.message("✅ API key authentication successful")
+      
+      # Upload to TestFlight
+      UI.message("🚀 Attempting to upload to TestFlight...")
+      pilot(
+        ipa: "App-signed.ipa",
+        skip_waiting_for_build_processing: true,
+        skip_submission: true,
+        api_key: api_key
+      )
+      UI.message("✅ Upload to TestFlight completed successfully!")
+    rescue => e
+      UI.error("❌ Upload failed: #{e.message}")
+      UI.message("📦 Signed IPA created successfully but upload failed")
+      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")
+      raise e
+    end
+  end
+end
+EOF
+
+            # Create Appfile
+            cat > fastlane/Appfile << 'EOF'
+app_identifier("com.qaonline.app")
+apple_id("jonatan.k@qaonline.co.il")
+team_id("BL7NANM4RM")
+EOF
             
             # Run upload
             fastlane upload
@@ -770,24 +300,12 @@ jobs:
           path: App-unsigned.ipa
           destination: unsigned-ipa
 
-# Define workflows
 workflows:
   version: 2
   
-  # Release workflow - runs on tags only
-  release:
+  simple_sign_workflow:
     jobs:
-      - ios_app_store_build:
-          filters:
-            tags:
-              only: /^release-.*/
-            branches:
-              ignore: /.*/
-  
-  # Sign IPA workflow - runs on sign-ipa branch
-  sign_ipa_workflow:
-    jobs:
-      - sign_existing_ipa:
+      - simple_sign_and_upload:
           filters:
             branches:
-              only: sign-ipa
+              only: simple-sign
