@@ -101,11 +101,42 @@ jobs:
               echo "⚠️ Missing required files, using existing certificate"
             fi
             
-            # WORKAROUND: Try to proceed with upload anyway
-            echo "🎯 PROCEEDING WITH CURRENT CERTIFICATE"
-            echo "📝 NOTE: The existing 'iPhone Distribution: Jonatan Koren' certificate"
-            echo "   may not work for App Store submission, but we'll try anyway."
-            echo "   Sometimes Apple accepts it depending on account settings."
+            # FORCE CREATE APPLE DISTRIBUTION CERTIFICATE
+            echo "🔧 FORCE CREATING APPLE DISTRIBUTION CERTIFICATE VIA FASTLANE..."
+            
+            # Use Fastlane to create the proper certificate
+            cd ios/App
+            
+            # Create API key file for Fastlane
+            echo "-----BEGIN PRIVATE KEY-----" > fastlane/AuthKey_GA95D4VQYQ.p8
+            cat ../../AuthKey_GA95D4VQYQ.p8 | grep -v "BEGIN\|END" >> fastlane/AuthKey_GA95D4VQYQ.p8
+            echo "-----END PRIVATE KEY-----" >> fastlane/AuthKey_GA95D4VQYQ.p8
+            
+            # Export environment variables for Fastlane
+            export APP_STORE_CONNECT_API_KEY_ID="GA95D4VQYQ"
+            export APP_STORE_CONNECT_ISSUER_ID="$(cat ../../apple.id)"
+            export APPLE_TEAM_ID="$(cat ../../team.id)"
+            
+            # Force create distribution certificate via Fastlane
+            echo "🔐 Creating distribution certificate via Fastlane cert action..."
+            gem install fastlane
+            fastlane cert --development false --force
+            
+            # Go back to root
+            cd ../../
+            
+            # Copy the new certificate if created
+            if [ -f "ios/App/dist_cert.cer" ]; then
+              echo "✅ Found new distribution certificate, installing..."
+              security import ios/App/dist_cert.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+              echo "✅ Apple Distribution certificate installed!"
+            elif [ -f "ios/App/certificates/distribution.cer" ]; then
+              echo "✅ Found distribution certificate in certificates folder, installing..."
+              security import ios/App/certificates/distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+              echo "✅ Apple Distribution certificate installed!"
+            else
+              echo "⚠️ Fastlane certificate creation also failed"
+            fi
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
@@ -143,9 +174,15 @@ jobs:
             echo "🔍 All identities found:"
             echo "$IDENTITIES_OUTPUT"
             
-            # Now search for App Store distribution certificate
-            SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "iPhone Distribution.*App Store|Apple Distribution" | head -1 | cut -d'"' -f2 || echo "")
-            echo "🔍 App Store search result: '$SIGNING_IDENTITY'"
+            # Now search for App Store distribution certificate (prioritize Apple Distribution)
+            SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Apple Distribution" | head -1 | cut -d'"' -f2 || echo "")
+            echo "🔍 Apple Distribution search result: '$SIGNING_IDENTITY'"
+            
+            # If no Apple Distribution found, try iPhone Distribution with App Store
+            if [ -z "$SIGNING_IDENTITY" ]; then
+              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "iPhone Distribution.*App Store" | head -1 | cut -d'"' -f2 || echo "")
+              echo "🔍 iPhone Distribution App Store search result: '$SIGNING_IDENTITY'"
+            fi
             
             # If no App Store certificate found, try any distribution certificate
             if [ -z "$SIGNING_IDENTITY" ]; then
@@ -193,8 +230,11 @@ jobs:
               echo "✅ Signing identity available: $SIGNING_IDENTITY"
             else
               echo "⚠️ No signing identity from previous step, will try to find one"
-              # Try to find signing identity again
-              SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution.*App Store|Apple Distribution" | head -1 | cut -d'"' -f2)
+              # Try to find signing identity again (prioritize Apple Distribution)
+              SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Distribution" | head -1 | cut -d'"' -f2)
+              if [ -z "$SIGNING_IDENTITY" ]; then
+                SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution.*App Store" | head -1 | cut -d'"' -f2)
+              fi
               if [ -z "$SIGNING_IDENTITY" ]; then
                 SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution" | head -1 | cut -d'"' -f2)
               fi
