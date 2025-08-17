@@ -308,6 +308,39 @@ jobs:
               if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
                 echo "✅ Found real iOS app IPA in project root: $(ls -la App.ipa)"
                 echo "🎉 Using real iOS app for App Store Connect upload!"
+                
+                # Validate the real iOS app IPA
+                echo "🔍 Validating real iOS app IPA..."
+                if [ -f "App.ipa" ]; then
+                  # Extract and check the executable
+                  mkdir -p temp_validation
+                  cd temp_validation
+                  unzip -q ../App.ipa
+                  if [ -f "Payload/App.app/App" ]; then
+                    EXECUTABLE_TYPE=$(file Payload/App.app/App)
+                    echo "🔍 Executable type: $EXECUTABLE_TYPE"
+                    if echo "$EXECUTABLE_TYPE" | grep -q "Mach-O"; then
+                      echo "✅ Real iOS app has valid Mach-O executable"
+                      REAL_IPA_VALID=true
+                    else
+                      echo "❌ Real iOS app does not have valid Mach-O executable"
+                      REAL_IPA_VALID=false
+                    fi
+                  else
+                    echo "❌ Real iOS app executable not found"
+                    REAL_IPA_VALID=false
+                  fi
+                  cd ..
+                  rm -rf temp_validation
+                else
+                  echo "❌ Real iOS app IPA not found for validation"
+                  REAL_IPA_VALID=false
+                fi
+                
+                if [ "$REAL_IPA_VALID" = "false" ]; then
+                  echo "❌ Real iOS app validation failed, falling back to test IPA..."
+                  CREATE_TEST_IPA=true
+                fi
               else
                 echo "❌ Real iOS app IPA not found, creating test IPA..."
                 # Fall back to creating a test IPA
