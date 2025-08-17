@@ -82,11 +82,30 @@ jobs:
             echo "🔍 Checking available signing identities in build keychain..."
             security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
             
-            # Get the actual signing identity
-            SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
+            # Get the actual signing identity - prefer App Store distribution certificate
+            SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution.*App Store|Apple Distribution" | head -1 | cut -d'"' -f2)
+            
+            # If no App Store certificate found, try any distribution certificate
+            if [ -z "$SIGNING_IDENTITY" ]; then
+              SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution" | head -1 | cut -d'"' -f2)
+            fi
+            
+            # If still no distribution certificate, try development certificate as last resort
+            if [ -z "$SIGNING_IDENTITY" ]; then
+              SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Development" | head -1 | cut -d'"' -f2)
+            fi
             
             if [ -n "$SIGNING_IDENTITY" ]; then
               echo "✅ Found signing certificate: $SIGNING_IDENTITY"
+              
+              # Check if it's a proper distribution certificate for App Store
+              if echo "$SIGNING_IDENTITY" | grep -q "iPhone Distribution.*App Store\|Apple Distribution"; then
+                echo "✅ Using App Store distribution certificate"
+              elif echo "$SIGNING_IDENTITY" | grep -q "iPhone Distribution"; then
+                echo "⚠️ Using general distribution certificate (may not work for App Store)"
+              else
+                echo "⚠️ Using development certificate (will not work for App Store upload)"
+              fi
             else
               echo "❌ No signing certificates found"
               echo "⚠️ Will proceed with unsigned IPA creation"
