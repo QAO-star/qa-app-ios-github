@@ -422,7 +422,7 @@ jobs:
                       
                       # Sign only the main app bundle to avoid hanging
                       echo "🔐 Signing main application bundle only..."
-                      codesign --force --sign "$SIGNING_IDENTITY" --entitlements ../../../App.entitlements Payload/App.app
+                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app
                       
                       if [ $? -eq 0 ]; then
                         echo "✅ Main app signed successfully"
