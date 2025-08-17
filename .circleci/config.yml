@@ -333,7 +333,21 @@ jobs:
                   if [ $EXPORT_EXIT_CODE -ne 0 ]; then
                     echo "❌ Export failed with output:"
                     echo "$EXPORT_OUTPUT"
-                    echo "🔧 Trying alternative export method..."
+                    echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
+                    
+                    # Extract the App.app directly from the archive
+                    if [ -d "App.xcarchive/Products/Applications/App.app" ]; then
+                      echo "✅ Found app in archive, creating IPA manually..."
+                      mkdir -p Payload
+                      cp -R "App.xcarchive/Products/Applications/App.app" Payload/
+                      zip -r App.ipa Payload/
+                      echo "✅ Created IPA manually from archive contents"
+                      ls -la App.ipa
+                    else
+                      echo "❌ Could not find app in archive"
+                      echo "🔍 Archive contents:"
+                      find App.xcarchive -name "*.app" -type d || echo "No .app found"
+                    fi
                     echo "📦 Creating exportOptions.plist for IPA export..."
                     echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
                     echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
@@ -363,6 +377,9 @@ jobs:
                   fi
                   
                   # Check if IPA was created (look for any .ipa file)
+                  echo "🔍 Looking for created IPA files..."
+                  ls -la *.ipa 2>/dev/null || echo "No IPA files found yet"
+                  
                   IPA_FILE=$(find . -name "*.ipa" -type f | head -1)
                   if [ -n "$IPA_FILE" ]; then
                     echo "✅ Found exported IPA: $IPA_FILE"
