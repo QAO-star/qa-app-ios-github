@@ -108,12 +108,14 @@ jobs:
               fi
               
               # Export the signing identity for the next step
-              echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> $BASH_ENV
+              echo "export SIGNING_IDENTITY='$SIGNING_IDENTITY'" >> $BASH_ENV
               echo "✅ Signing identity exported for next step"
             else
               echo "❌ No signing certificates found"
               echo "⚠️ Will proceed with unsigned IPA creation"
             fi
+            
+            echo "🔍 Certificate setup step completed successfully"
       
       - run:
           name: "Create and sign IPA"
