@@ -425,9 +425,6 @@ jobs:
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" ~/Library/Keychains/build.keychain
             security default-keychain -s ~/Library/Keychains/build.keychain
             
-            # Also try to unlock login keychain without password (for system certs)
-            security unlock-keychain ~/Library/Keychains/login.keychain-db || echo "⚠️ Could not unlock login keychain"
-            
             # Try codesign with the actual certificate hash
             echo "🔐 Attempting codesign with certificate hash: $CERT_HASH"
             if codesign --force --sign "$CERT_HASH" Payload/App.app; then
