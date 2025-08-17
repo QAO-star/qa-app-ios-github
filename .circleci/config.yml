@@ -150,6 +150,11 @@ jobs:
             echo ""
             echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
             
+            # CRITICAL: Install Apple Distribution certificate BEFORE anything else
+            echo "🔍 Checking for Apple Distribution certificate in repository..."
+            ls -la distribution.cer 2>/dev/null || echo "❌ distribution.cer not found"
+            ls -la apple_distribution.cer 2>/dev/null || echo "❌ apple_distribution.cer not found"
+            
             # Check if Apple Distribution certificate was added to the repository
             if [ -f "distribution.cer" ]; then
               echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: distribution.cer"
@@ -218,8 +223,15 @@ jobs:
             echo "$IDENTITIES_OUTPUT"
             
             # Now search for App Store distribution certificate (prioritize Apple Distribution)
+            # First try exact "Apple Distribution" match
             SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Apple Distribution" | head -1 | cut -d'"' -f2 || echo "")
             echo "🔍 Apple Distribution search result: '$SIGNING_IDENTITY'"
+            
+            # Also try distribution certificate variations
+            if [ -z "$SIGNING_IDENTITY" ]; then
+              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Distribution.*Apple|Apple.*Distribution" | head -1 | cut -d'"' -f2 || echo "")
+              echo "🔍 Apple Distribution variation search result: '$SIGNING_IDENTITY'"
+            fi
             
             # If no Apple Distribution found, try iPhone Distribution with App Store
             if [ -z "$SIGNING_IDENTITY" ]; then
@@ -617,8 +629,9 @@ jobs:
                       # Try to sign with timeout to avoid hanging
                       echo "🔐 Attempting to sign main application bundle..."
                       
-                      # Use timeout to prevent hanging (30 seconds)
-                      if timeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
+                      # Use timeout to prevent hanging (30 seconds) - install coreutils for timeout
+                      brew install coreutils 2>/dev/null || echo "coreutils already installed"
+                      if gtimeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
                         echo "✅ Main app signed successfully"
                       else
                         echo "❌ Code signing failed or timed out, continuing with unsigned IPA"
