@@ -607,26 +607,38 @@ jobs:
                   brew install imagemagick || echo "⚠️ Failed to install ImageMagick, using direct copy"
                 fi
                 
-                # Create app icons using ImageMagick with Apple's exact naming conventions
+                # 🎯 CRITICAL APPLE VALIDATION FIX - Create icons with EXACT dimensions Apple expects
                 if command -v convert >/dev/null 2>&1; then
-                  echo "🔧 Creating iPhone app icon (120x120) - Apple's exact naming..."
-                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/AppIcon60x60@2x.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/Icon-App-60x60@2x.png
+                  echo "🎯 APPLE VALIDATION FIX: Creating icons with exact pixel dimensions..."
                   
-                  echo "🔧 Creating iPad app icon (152x152) - Apple's exact naming..."  
-                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/Icon-App-76x76@2x.png
+                  # 🔥 MOST CRITICAL: 120x120 iPhone icon (primary validation error)
+                  echo "📱 Creating 120x120 iPhone icon - PRIMARY VALIDATION REQUIREMENT"
+                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon60x60@2x.png
+                  # Create multiple variations that Apple might look for
+                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-60@2x.png
+                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-120.png
+                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-120.png
                   
-                  echo "🔧 Creating iPad Pro app icon (167x167) - Apple's exact naming..."
-                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/Icon-App-83.5x83.5@2x.png
+                  # ✅ EXACT 152x152 iPad icon (second validation error)
+                  echo "📱 Creating 152x152 iPad icon - IPAD VALIDATION REQUIREMENT"  
+                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon76x76@2x~ipad.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-76@2x.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-152.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-152.png
                   
-                  # Create additional standard iOS icon sizes that Apple might expect
-                  echo "🔧 Creating additional standard iOS icons..."
-                  convert company_logo.png -resize 57x57! -background white -alpha remove Payload/App.app/Icon.png
-                  convert company_logo.png -resize 114x114! -background white -alpha remove Payload/App.app/Icon@2x.png
-                  convert company_logo.png -resize 72x72! -background white -alpha remove Payload/App.app/Icon-72.png
-                  convert company_logo.png -resize 144x144! -background white -alpha remove Payload/App.app/Icon-72@2x.png
+                  # ✅ EXACT 167x167 iPad Pro icon (third validation error)
+                  echo "📱 Creating 167x167 iPad Pro icon - IPAD PRO VALIDATION REQUIREMENT"
+                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-83.5@2x.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-167.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-167.png
+                  
+                  # 🔄 LEGACY iOS ICONS for backward compatibility
+                  echo "🔄 Creating legacy iOS icons for maximum Apple compatibility..."
+                  convert company_logo.png -resize 57x57! -background white -alpha remove -quality 100 Payload/App.app/Icon.png
+                  convert company_logo.png -resize 114x114! -background white -alpha remove -quality 100 Payload/App.app/Icon@2x.png
+                  convert company_logo.png -resize 72x72! -background white -alpha remove -quality 100 Payload/App.app/Icon-72.png
+                  convert company_logo.png -resize 144x144! -background white -alpha remove -quality 100 Payload/App.app/Icon-72@2x.png
                   
                   echo "✅ Created app icons using your company logo with ImageMagick"
                   
@@ -817,15 +829,60 @@ jobs:
                 echo "❌ CRITICAL: Info.plist missing!"
               fi
               
-              # Check app icons
-              echo "🔍 Checking app icons..."
-              for icon in "Icon.png" "Icon@2x.png" "Icon-72.png" "Icon-72@2x.png" "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
+              # 🔍 COMPREHENSIVE ICON VERIFICATION for Apple validation
+              echo "🔍 Checking app icons - COMPREHENSIVE VERIFICATION..."
+              
+              # Check CRITICAL Apple validation icons
+              echo "🎯 CRITICAL APPLE VALIDATION ICONS:"
+              for icon in "AppIcon60x60@2x.png" "Icon-120.png" "AppIcon-120.png"; do
                 if [ -f "Payload/App.app/$icon" ]; then
-                  echo "✅ $icon exists ($(ls -la "Payload/App.app/$icon" | awk '{print $5}') bytes)"
+                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
+                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
+                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
                 else
                   echo "❌ CRITICAL: $icon missing!"
                 fi
               done
+              
+              # Check iPad icons
+              echo "📱 IPAD VALIDATION ICONS:"
+              for icon in "AppIcon76x76@2x~ipad.png" "Icon-152.png" "AppIcon-152.png"; do
+                if [ -f "Payload/App.app/$icon" ]; then
+                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
+                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
+                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
+                else
+                  echo "❌ CRITICAL: $icon missing!"
+                fi
+              done
+              
+              # Check iPad Pro icons
+              echo "📱 IPAD PRO VALIDATION ICONS:"
+              for icon in "AppIcon83.5x83.5@2x~ipad.png" "Icon-167.png" "AppIcon-167.png"; do
+                if [ -f "Payload/App.app/$icon" ]; then
+                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
+                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
+                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
+                else
+                  echo "❌ CRITICAL: $icon missing!"
+                fi
+              done
+              
+              # Check legacy icons  
+              echo "🔄 LEGACY COMPATIBILITY ICONS:"
+              for icon in "Icon.png" "Icon@2x.png" "Icon-72.png" "Icon-72@2x.png"; do
+                if [ -f "Payload/App.app/$icon" ]; then
+                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
+                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
+                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
+                else
+                  echo "⚠️ $icon missing (legacy, may be optional)"
+                fi
+              done
+              
+              # List ALL icons to see what we actually have
+              echo "📋 ALL ICON FILES IN BUNDLE:"
+              find Payload/App.app -name "*.png" -type f | sort
               
               # Check Assets.xcassets structure
               if [ -d "Payload/App.app/Assets.xcassets/AppIcon.appiconset" ]; then
@@ -881,6 +938,29 @@ jobs:
               else
                 echo "❌ CRITICAL: embedded.mobileprovision NOT found in IPA!"
                 exit 1
+              fi
+              
+              # 🎯 CRITICAL: Verify icons are actually IN the uploaded IPA
+              echo "🔍 CRITICAL APPLE VALIDATION: Verifying icons are in the final IPA..."
+              echo "📋 ALL PNG FILES IN FINAL IPA:"
+              unzip -l App-signed.ipa | grep -E "\.png$" | sort || echo "❌ No PNG files found in IPA!"
+              
+              echo "🎯 CRITICAL VALIDATION ICONS IN IPA:"
+              for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
+                if unzip -l App-signed.ipa | grep -q "$icon"; then
+                  echo "✅ $icon found in IPA"
+                else
+                  echo "❌ CRITICAL: $icon missing from IPA!"
+                fi
+              done
+              
+              echo "🔍 Info.plist verification in IPA:"
+              if unzip -l App-signed.ipa | grep -q "Info.plist"; then
+                echo "✅ Info.plist found in IPA"
+                # Extract and check CFBundleIconName
+                unzip -p App-signed.ipa Payload/App.app/Info.plist 2>/dev/null | grep -A1 "CFBundleIconName" || echo "❌ CFBundleIconName not found in IPA Info.plist"
+              else
+                echo "❌ CRITICAL: Info.plist missing from IPA!"
               fi
               
               # Clean up
