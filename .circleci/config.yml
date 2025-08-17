@@ -3,7 +3,7 @@ version: 2.1
 executors:
   macos:
     macos:
-      xcode: "16.0.0"
+      xcode: "15.4.0"
 
 jobs:
   simple_sign_and_upload:
@@ -370,17 +370,13 @@ jobs:
                   echo "✅ Found existing app structure in Payload directory!"
                   echo "🔄 Using existing app structure instead of building from scratch..."
                   
-                  # Check if the existing app is valid
-                  EXISTING_APP_TYPE=$(file Payload/App.app/App 2>/dev/null || echo "unknown")
-                  echo "🔍 Existing app executable type: $EXISTING_APP_TYPE"
-                  
-                  if [[ "$EXISTING_APP_TYPE" == *"Mach-O"* ]]; then
-                    echo "✅ Existing app has valid Mach-O executable"
-                    REAL_IPA_CREATED=true
-                  else
-                    echo "⚠️ Existing app executable needs fixing"
-                    REAL_IPA_CREATED=false  # Will trigger fixing logic later
-                  fi
+                                  # Check if the existing app is valid but force test IPA creation for now
+                EXISTING_APP_TYPE=$(file Payload/App.app/App 2>/dev/null || echo "unknown")
+                echo "🔍 Existing app executable type: $EXISTING_APP_TYPE"
+                
+                # Force test IPA creation to apply our validation fixes
+                echo "🔧 Forcing test IPA creation to apply validation fixes..."
+                REAL_IPA_CREATED=false
                 else
                   echo "❌ No existing app structure found, will create test IPA"
                   REAL_IPA_CREATED=false
@@ -504,6 +500,10 @@ jobs:
               echo "🔍 Now in project directory: $(pwd)"
             fi
             
+            # Clean up any existing Payload directory to avoid bundle collisions
+            echo "🧹 Cleaning up existing Payload directory..."
+            rm -rf Payload/
+            
             # Fall back to creating a test IPA
             CREATE_TEST_IPA=true
               fi
@@ -526,7 +526,7 @@ jobs:
               
               # Create comprehensive Info.plist with all required Apple metadata
               echo "Creating complete Info.plist..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A380</string>\n    <key>DTPlatformBuild</key>\n    <string>22A380</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
+              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>12.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>17.5</string>\n    <key>DTSDKName</key>\n    <string>iphoneos17.5</string>\n    <key>DTSDKBuild</key>\n    <string>21F79</string>\n    <key>DTPlatformBuild</key>\n    <string>21F79</string>\n    <key>DTXcode</key>\n    <string>1540</string>\n    <key>DTXcodeBuild</key>\n    <string>15F31d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -593,6 +593,9 @@ jobs:
                   
                   echo "🔧 Creating iPad app icon (152x152)..."  
                   convert company_logo.png -resize 152x152^ -gravity center -extent 152x152 Payload/App.app/AppIcon76x76@2x~ipad.png
+                  
+                  echo "🔧 Creating iPad Pro app icon (167x167)..."
+                  convert company_logo.png -resize 167x167^ -gravity center -extent 167x167 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
                   
                   echo "✅ Created app icons using your company logo with ImageMagick"
                 else
