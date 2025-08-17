@@ -1,10 +1,5 @@
 version: 2.1
 
-parameters:
-  workflow_type:
-    type: string
-    default: "build"
-
 executors:
   macos:
     macos:
@@ -1710,18 +1705,16 @@ jobs:
 workflows:
   version: 2
   
-  # Workflow 1: Generate CSR only (trigger manually)
+  # Workflow 1: Generate CSR only (triggered by branch name)
   generate_csr_workflow:
-    when:
-      equal: [ "generate-csr", << pipeline.parameters.workflow_type >> ]
     jobs:
-      - generate_csr_only
+      - generate_csr_only:
+          filters:
+            branches:
+              only: generate-csr
   
   # Workflow 2: Full build and upload (default)
   simple_sign_workflow:
-    when:
-      not:
-        equal: [ "generate-csr", << pipeline.parameters.workflow_type >> ]
     jobs:
       - simple_sign_and_upload:
           filters:
