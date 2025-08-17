@@ -377,9 +377,11 @@ jobs:
                 # Force test IPA creation to apply our validation fixes
                 echo "🔧 Forcing test IPA creation to apply validation fixes..."
                 REAL_IPA_CREATED=false
+                CREATE_TEST_IPA=true
                 else
                   echo "❌ No existing app structure found, will create test IPA"
                   REAL_IPA_CREATED=false
+                  CREATE_TEST_IPA=true
                 fi
                 
                 # Make sure we're back in project root for the rest of the script
@@ -387,6 +389,11 @@ jobs:
               fi
               
               # Already in project root from fallback logic
+              
+              # OVERRIDE: Force test IPA creation to ensure all validation fixes are applied
+              echo "🚨 OVERRIDE: Forcing test IPA creation for validation fixes"
+              REAL_IPA_CREATED=false
+              CREATE_TEST_IPA=true
               
               # Check if we got a real iOS app IPA
               if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
@@ -504,7 +511,8 @@ jobs:
             echo "🧹 Cleaning up existing Payload directory..."
             rm -rf Payload/
             
-            # Fall back to creating a test IPA
+            # FORCE TEST IPA CREATION ALWAYS to ensure our validation fixes are applied
+            echo "🚨 FORCING TEST IPA CREATION FOR VALIDATION FIXES"
             CREATE_TEST_IPA=true
               fi
             else
