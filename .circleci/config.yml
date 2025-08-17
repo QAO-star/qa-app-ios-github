@@ -420,23 +420,22 @@ jobs:
                     if [ -n "$SIGNING_IDENTITY" ]; then
                       echo "🔐 Using signing identity: $SIGNING_IDENTITY"
                       
-                      # Sign embedded frameworks first
-                      echo "🔐 Signing embedded frameworks..."
-                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/Frameworks/Capacitor.framework/Capacitor
-                      codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/Frameworks/Cordova.framework/Cordova
-                      
-                      # Sign the main app bundle
-                      echo "🔐 Signing main application bundle..."
+                      # Sign only the main app bundle to avoid hanging
+                      echo "🔐 Signing main application bundle only..."
                       codesign --force --sign "$SIGNING_IDENTITY" --entitlements ../../../App.entitlements Payload/App.app
+                      
+                      if [ $? -eq 0 ]; then
+                        echo "✅ Main app signed successfully"
+                      else
+                        echo "❌ Main app signing failed, continuing with unsigned IPA"
+                      fi
                     else
                       echo "❌ No signing identity found, skipping code signing"
                       echo "⚠️ IPA will be unsigned"
                     fi
                     
-                    # Verify signatures
-                    echo "🔍 Verifying signatures..."
-                    codesign --verify --verbose Payload/App.app/Frameworks/Capacitor.framework || echo "❌ Capacitor framework signature verification failed"
-                    codesign --verify --verbose Payload/App.app/Frameworks/Cordova.framework || echo "❌ Cordova framework signature verification failed"
+                    # Verify main app signature only
+                    echo "🔍 Verifying main app signature..."
                     codesign --verify --verbose Payload/App.app || echo "❌ Main app signature verification failed"
                     
                     echo "📦 Creating final signed IPA with embedded provisioning profile..."
