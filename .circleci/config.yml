@@ -268,6 +268,50 @@ jobs:
             
             echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
             
+            # Copy IPA to project root for Fastlane
+            echo "📁 Copying IPA to project root for Fastlane..."
+            cp App-signed.ipa ../App-signed.ipa || echo "⚠️ Could not copy to parent directory"
+            echo "📁 IPA files available:"
+            find . -name "*.ipa" -type f 2>/dev/null || echo "No IPA files found"
+            find .. -name "*.ipa" -type f 2>/dev/null || echo "No IPA files in parent directory"
+            
+            # Verify API key file exists
+            echo "🔍 Verifying API key file exists..."
+            if [ ! -f "AuthKey_GFAD2LJGMF.p8" ]; then
+              echo "❌ API key file not found at AuthKey_GFAD2LJGMF.p8"
+              echo "📁 Current directory: $(pwd)"
+              echo "📁 Available files in project root:"
+              ls -la | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
+              echo ""
+              echo "🔧 Creating API key file with your provided key..."
+              echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
+              echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
+              echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
+              echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
+              echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
+              echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
+              echo "✅ API key file created: AuthKey_GFAD2LJGMF.p8"
+            fi
+            echo "✅ API key file found: AuthKey_GFAD2LJGMF.p8"
+            
+            # Debug environment variables
+            echo "🔍 Debugging environment variables:"
+            echo "API Key ID: ${APP_STORE_CONNECT_API_KEY_ID}"
+            echo "Issuer ID: ${APP_STORE_CONNECT_ISSUER_ID}"
+            echo "API Key content length: $(echo '$APP_STORE_CONNECT_API_KEY' | wc -c)"
+            
+            # Check if app is registered in App Store Connect
+            echo "🔍 Checking if app is registered in App Store Connect..."
+            echo "📱 Bundle ID: com.qaonline.app"
+            echo "📱 Team ID: BL7NANM4RM"
+            echo "📱 API Key ID: GFAD2LJGMF"
+            echo ""
+            echo "⚠️  IMPORTANT: If the upload fails, please ensure:"
+            echo "   1. App 'com.qaonline.app' is registered in App Store Connect"
+            echo "   2. API key has 'App Manager' or 'Developer' role"
+            echo "   3. Bundle ID matches exactly: com.qaonline.app"
+            echo ""
+            
             # Setup Fastlane
             gem install fastlane
             
@@ -298,29 +342,41 @@ jobs:
             echo '' >> fastlane/Fastfile
             echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
             echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
-            echo '      system("unzip -t App-signed.ipa")' >> fastlane/Fastfile
-            echo '      system("codesign -dv --verbose=4 App-signed.ipa")' >> fastlane/Fastfile
-            echo '      UI.message("✅ IPA file integrity check completed")' >> fastlane/Fastfile
+            echo '      ipa_paths = ["App-signed.ipa", "../App-signed.ipa", "ios/App/App-signed.ipa"]' >> fastlane/Fastfile
+            echo '      ipa_file = nil' >> fastlane/Fastfile
+            echo '      ipa_paths.each do |path|' >> fastlane/Fastfile
+            echo '        if File.exist?(path)' >> fastlane/Fastfile
+            echo '          ipa_file = path' >> fastlane/Fastfile
+            echo '          UI.success("✅ Found IPA file at: #{path}")' >> fastlane/Fastfile
+            echo '          break' >> fastlane/Fastfile
+            echo '        end' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '      ' >> fastlane/Fastfile
+            echo '      if ipa_file.nil?' >> fastlane/Fastfile
+            echo '        UI.error("❌ App-signed.ipa not found in any expected location")' >> fastlane/Fastfile
+            echo '        UI.message("📁 Current directory: #{Dir.pwd}")' >> fastlane/Fastfile
+            echo '        UI.message("📁 Available IPA files: #{Dir.glob(\"**/*.ipa\").join(\", \")}")' >> fastlane/Fastfile
+            echo '        raise "IPA file not found"' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '      ' >> fastlane/Fastfile
+            echo '      # Check IPA integrity' >> fastlane/Fastfile
+            echo '      system("unzip -t #{ipa_file}")' >> fastlane/Fastfile
+            echo '      system("codesign -dv --verbose=4 #{ipa_file}")' >> fastlane/Fastfile
+            echo '      UI.success("✅ IPA file integrity check completed")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
             echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        app = api_key.get_app(bundle_id: "com.qaonline.app")' >> fastlane/Fastfile
-            echo '        UI.success("✅ App found in App Store Connect: #{app.name}")' >> fastlane/Fastfile
-            echo '      rescue => e' >> fastlane/Fastfile
-            echo '        UI.error("❌ App not found in App Store Connect: #{e.message}")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Please register the app in App Store Connect first")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
-            echo '        raise e' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
+            echo '      UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
+            echo '      UI.message("📋 API Key ID: GFAD2LJGMF")' >> fastlane/Fastfile
+            echo '      UI.message("⚠️  If upload fails, ensure app is registered in App Store Connect")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
             echo '      begin' >> fastlane/Fastfile
             echo '        # Try pilot first' >> fastlane/Fastfile
             echo '        pilot(' >> fastlane/Fastfile
-            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          ipa: ipa_file,' >> fastlane/Fastfile
             echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
             echo '          skip_submission: true,' >> fastlane/Fastfile
             echo '          api_key: api_key' >> fastlane/Fastfile
@@ -333,7 +389,7 @@ jobs:
             echo '        # Try alternative upload method' >> fastlane/Fastfile
             echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
             echo '        deliver(' >> fastlane/Fastfile
-            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          ipa: ipa_file,' >> fastlane/Fastfile
             echo '          skip_screenshots: true,' >> fastlane/Fastfile
             echo '          skip_metadata: true,' >> fastlane/Fastfile
             echo '          submit_for_review: false,' >> fastlane/Fastfile
@@ -590,42 +646,12 @@ jobs:
             
             echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
             
-            # Verify API key file exists
-            echo "🔍 Verifying API key file exists..."
-            if [ ! -f "AuthKey_GFAD2LJGMF.p8" ]; then
-              echo "❌ API key file not found at AuthKey_GFAD2LJGMF.p8"
-              echo "📁 Current directory: $(pwd)"
-              echo "📁 Available files in project root:"
-              ls -la | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
-              echo ""
-              echo "🔧 Creating API key file with your provided key..."
-              echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
-              echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
-              echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
-              echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
-              echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
-              echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
-              echo "✅ API key file created: AuthKey_GFAD2LJGMF.p8"
-            fi
-            echo "✅ API key file found: AuthKey_GFAD2LJGMF.p8"
-            
-            # Debug environment variables
-            echo "🔍 Debugging environment variables:"
-            echo "API Key ID: ${APP_STORE_CONNECT_API_KEY_ID}"
-            echo "Issuer ID: ${APP_STORE_CONNECT_ISSUER_ID}"
-            echo "API Key content length: $(echo '$APP_STORE_CONNECT_API_KEY' | wc -c)"
-            
-            # Check if app is registered in App Store Connect
-            echo "🔍 Checking if app is registered in App Store Connect..."
-            echo "📱 Bundle ID: com.qaonline.app"
-            echo "📱 Team ID: BL7NANM4RM"
-            echo "📱 API Key ID: GFAD2LJGMF"
-            echo ""
-            echo "⚠️  IMPORTANT: If the upload fails, please ensure:"
-            echo "   1. App 'com.qaonline.app' is registered in App Store Connect"
-            echo "   2. API key has 'App Manager' or 'Developer' role"
-            echo "   3. Bundle ID matches exactly: com.qaonline.app"
-            echo ""
+            # Copy IPA to project root for Fastlane
+            echo "📁 Copying IPA to project root for Fastlane..."
+            cp App-signed.ipa ../App-signed.ipa || echo "⚠️ Could not copy to parent directory"
+            echo "📁 IPA files available:"
+            find . -name "*.ipa" -type f 2>/dev/null || echo "No IPA files found"
+            find .. -name "*.ipa" -type f 2>/dev/null || echo "No IPA files in parent directory"
             
             # Setup Fastlane
             gem install fastlane
@@ -657,29 +683,41 @@ jobs:
             echo '' >> fastlane/Fastfile
             echo '      # Debug: Check IPA file integrity' >> fastlane/Fastfile
             echo '      UI.message("🔍 Checking IPA file integrity...")' >> fastlane/Fastfile
-            echo '      system("unzip -t App-signed.ipa")' >> fastlane/Fastfile
-            echo '      system("codesign -dv --verbose=4 App-signed.ipa")' >> fastlane/Fastfile
-            echo '      UI.message("✅ IPA file integrity check completed")' >> fastlane/Fastfile
+            echo '      ipa_paths = ["App-signed.ipa", "../App-signed.ipa", "ios/App/App-signed.ipa"]' >> fastlane/Fastfile
+            echo '      ipa_file = nil' >> fastlane/Fastfile
+            echo '      ipa_paths.each do |path|' >> fastlane/Fastfile
+            echo '        if File.exist?(path)' >> fastlane/Fastfile
+            echo '          ipa_file = path' >> fastlane/Fastfile
+            echo '          UI.success("✅ Found IPA file at: #{path}")' >> fastlane/Fastfile
+            echo '          break' >> fastlane/Fastfile
+            echo '        end' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '      ' >> fastlane/Fastfile
+            echo '      if ipa_file.nil?' >> fastlane/Fastfile
+            echo '        UI.error("❌ App-signed.ipa not found in any expected location")' >> fastlane/Fastfile
+            echo '        UI.message("📁 Current directory: #{Dir.pwd}")' >> fastlane/Fastfile
+            echo '        UI.message("📁 Available IPA files: #{Dir.glob(\"**/*.ipa\").join(\", \")}")' >> fastlane/Fastfile
+            echo '        raise "IPA file not found"' >> fastlane/Fastfile
+            echo '      end' >> fastlane/Fastfile
+            echo '      ' >> fastlane/Fastfile
+            echo '      # Check IPA integrity' >> fastlane/Fastfile
+            echo '      system("unzip -t #{ipa_file}")' >> fastlane/Fastfile
+            echo '      system("codesign -dv --verbose=4 #{ipa_file}")' >> fastlane/Fastfile
+            echo '      UI.success("✅ IPA file integrity check completed")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Debug: Check app registration in App Store Connect' >> fastlane/Fastfile
             echo '      UI.message("🔍 Checking app registration in App Store Connect...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        app = api_key.get_app(bundle_id: "com.qaonline.app")' >> fastlane/Fastfile
-            echo '        UI.success("✅ App found in App Store Connect: #{app.name}")' >> fastlane/Fastfile
-            echo '      rescue => e' >> fastlane/Fastfile
-            echo '        UI.error("❌ App not found in App Store Connect: #{e.message}")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Please register the app in App Store Connect first")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
-            echo '        UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
-            echo '        raise e' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      UI.message("📋 Bundle ID: com.qaonline.app")' >> fastlane/Fastfile
+            echo '      UI.message("📋 Team ID: BL7NANM4RM")' >> fastlane/Fastfile
+            echo '      UI.message("📋 API Key ID: GFAD2LJGMF")' >> fastlane/Fastfile
+            echo '      UI.message("⚠️  If upload fails, ensure app is registered in App Store Connect")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
             echo '      begin' >> fastlane/Fastfile
             echo '        # Try pilot first' >> fastlane/Fastfile
             echo '        pilot(' >> fastlane/Fastfile
-            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          ipa: ipa_file,' >> fastlane/Fastfile
             echo '          skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
             echo '          skip_submission: true,' >> fastlane/Fastfile
             echo '          api_key: api_key' >> fastlane/Fastfile
@@ -692,7 +730,7 @@ jobs:
             echo '        # Try alternative upload method' >> fastlane/Fastfile
             echo '        UI.message("🔄 Trying alternative upload method...")' >> fastlane/Fastfile
             echo '        deliver(' >> fastlane/Fastfile
-            echo '          ipa: "App-signed.ipa",' >> fastlane/Fastfile
+            echo '          ipa: ipa_file,' >> fastlane/Fastfile
             echo '          skip_screenshots: true,' >> fastlane/Fastfile
             echo '          skip_metadata: true,' >> fastlane/Fastfile
             echo '          submit_for_review: false,' >> fastlane/Fastfile
