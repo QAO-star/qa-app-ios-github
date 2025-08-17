@@ -29,6 +29,14 @@ jobs:
             security unlock-keychain -p "temp" build.keychain
             security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
             
+            # EMERGENCY DEBUGGING - CHECK EVERYTHING
+            echo "🚨 EMERGENCY DEBUG: Certificate setup starting..."
+            echo "🔍 Current directory: $(pwd)"
+            echo "🔍 All .cer files in current directory:"
+            ls -la *.cer 2>/dev/null || echo "❌ No .cer files found"
+            echo "🔍 All files in current directory:"
+            ls -la | head -20
+            
             # FIRST PRIORITY: Install Apple Distribution certificate if it exists
             echo "🔍 PRIORITY: Checking for Apple Distribution certificate in repository..."
             ls -la distribution.cer 2>/dev/null && echo "✅ distribution.cer found!" || echo "❌ distribution.cer not found"
@@ -37,12 +45,30 @@ jobs:
             if [ -f "distribution.cer" ]; then
               echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: distribution.cer"
               echo "🔐 Installing Apple Distribution certificate..."
-              security import distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A
-              echo "✅ Apple Distribution certificate installed!"
-              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IS NOW AVAILABLE FOR SIGNING!"
+              
+              # Debug the certificate file
+              echo "🔍 Certificate file info:"
+              file distribution.cer
+              ls -la distribution.cer
+              
+              # Try importing with debugging
+              echo "🔐 Attempting to import certificate..."
+              if security import distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A; then
+                echo "✅ Apple Distribution certificate installed successfully!"
+              else
+                echo "❌ Failed to import Apple Distribution certificate"
+              fi
+              
+              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IMPORT COMPLETED!"
             else
               echo "⚠️ No Apple Distribution certificate found in repository"
+              echo "🔍 Current directory contents:"
+              ls -la
             fi
+            
+            # Verify what certificates are now in keychain
+            echo "🔍 VERIFYING CERTIFICATES IN KEYCHAIN:"
+            security find-identity -v -p codesigning ~/Library/Keychains/build.keychain || echo "❌ Failed to list keychain identities"
             
             # Install the existing provisioning profile
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
