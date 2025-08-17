@@ -104,7 +104,7 @@ jobs:
               # Install capacitor dependencies if not already present
               if [ ! -f "node_modules/@capacitor/ios/package.json" ]; then
                 echo "📦 Installing missing Capacitor iOS dependency..."
-                npm install @capacitor/ios @capacitor/core
+              npm install @capacitor/ios @capacitor/core
               fi
               
               # Sync Capacitor (this updates the iOS project)
@@ -146,7 +146,7 @@ jobs:
               cd ios/App
               
               # Install CocoaPods dependencies
-              echo "📦 Installing CocoaPods dependencies..."
+                echo "📦 Installing CocoaPods dependencies..."
               if [ -f "Podfile" ]; then
                 if [ ! -d "Pods" ]; then
                   pod install --repo-update
@@ -285,7 +285,7 @@ jobs:
                 
                 # Capture both stdout and stderr, but also show real-time output
                 BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
-                BUILD_EXIT_CODE=$?
+              BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
                 if [ $BUILD_EXIT_CODE -ne 0 ]; then
@@ -329,12 +329,12 @@ jobs:
                   echo "📦 Exporting real iOS app to IPA..."
                   set +e  # Don't exit on export failure
                   EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-real.plist 2>&1)
-                  EXPORT_EXIT_CODE=$?
+                    EXPORT_EXIT_CODE=$?
                   set -e  # Re-enable exit on error
-                  echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
-                  if [ $EXPORT_EXIT_CODE -ne 0 ]; then
-                    echo "❌ Export failed with output:"
-                    echo "$EXPORT_OUTPUT"
+                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
+                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
+                      echo "❌ Export failed with output:"
+                      echo "$EXPORT_OUTPUT"
                     echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
                     
                     # Extract the App.app directly from the archive
@@ -367,8 +367,8 @@ jobs:
                         echo "✅ IPA file created successfully: $(ls -la App.ipa)"
                       else
                         echo "❌ Failed to create IPA file"
-                      fi
-                    else
+                    fi
+                  else
                       echo "❌ Could not find App.app in archive"
                       echo "🔍 Complete archive structure:"
                       find App.xcarchive -type f | head -20
@@ -566,11 +566,11 @@ jobs:
                     echo "❌ IPA structure is wrong, falling back to test IPA creation"
                     cd ..
                     rm -rf fix_ipa_temp
-                    CREATE_TEST_IPA=true
+                  CREATE_TEST_IPA=true
                   fi
                 fi
               else
-                            echo "❌ Real iOS app IPA not found, creating test IPA..."
+                echo "❌ Real iOS app IPA not found, creating test IPA..."
             
             # Ensure we're in the correct project directory
             echo "🔍 Current working directory: $(pwd)"
@@ -1135,9 +1135,14 @@ jobs:
             fi
             
             if [ -f "App-signed.ipa" ]; then
-              echo "✅ IPA signed successfully!"
-              ls -la App-signed.ipa
-              echo "📊 File size: $(ls -la App-signed.ipa | awk '{print $5}')"
+            echo "✅ IPA signed successfully!"
+            ls -la App-signed.ipa
+            echo "📊 File size: $(ls -la App-signed.ipa | awk '{print $5}')"
+            
+            # Ensure signed IPA is also in project root for upload step
+            echo "📋 Copying signed IPA to project root for upload..."
+            cp App-signed.ipa ../App-signed.ipa
+            echo "✅ Signed IPA copied to project root: $(ls -la ../App-signed.ipa)"
               
               # Final validation check
               echo "🔍 FINAL IPA VALIDATION..."
@@ -1158,9 +1163,9 @@ jobs:
               cd ..
               rm -rf final_validation
               
-              echo ""
-              echo "🎉 Successfully created signed IPA!"
-              echo "📱 The signed IPA is ready for App Store Connect upload"
+            echo ""
+            echo "🎉 Successfully created signed IPA!"
+            echo "📱 The signed IPA is ready for App Store Connect upload"
             else
               echo "❌ CRITICAL: No IPA file was created!"
               exit 1
@@ -1173,8 +1178,22 @@ jobs:
             
             # Verify the signed IPA exists
             if [ ! -f "App-signed.ipa" ]; then
-              echo "❌ Signed IPA not found!"
-              exit 1
+              echo "❌ Signed IPA not found in current directory!"
+              echo "🔍 Current directory: $(pwd)"
+              echo "🔍 Looking for IPA files in current directory:"
+              ls -la *.ipa 2>/dev/null || echo "No IPA files found"
+              echo "🔍 Looking for IPA files in ios/App directory:"
+              ls -la ios/App/*.ipa 2>/dev/null || echo "No IPA files found in ios/App"
+              
+              # Try to find and copy the signed IPA from ios/App
+              if [ -f "ios/App/App-signed.ipa" ]; then
+                echo "✅ Found signed IPA in ios/App directory, copying to root..."
+                cp ios/App/App-signed.ipa ./App-signed.ipa
+                echo "✅ Copied signed IPA to root: $(ls -la App-signed.ipa)"
+              else
+                echo "❌ Signed IPA not found anywhere!"
+                exit 1
+              fi
             fi
             
             echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
