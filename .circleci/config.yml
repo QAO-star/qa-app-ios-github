@@ -357,6 +357,13 @@ jobs:
                 # Check if there's already a working app structure in the Payload directory
                 echo "🔍 Current directory: $(pwd)"
                 cd ../../..  # Go back to project root to check Payload
+                
+                # Ensure we're in the actual project directory, not user home
+                if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ]; then
+                  echo "🔄 Navigating to actual project directory..."
+                  cd project
+                fi
+                
                 echo "🔍 Project root directory: $(pwd)"
                 
                 if [ -d "Payload/App.app" ] && [ -f "Payload/App.app/App" ]; then
@@ -487,9 +494,18 @@ jobs:
                   fi
                 fi
               else
-                echo "❌ Real iOS app IPA not found, creating test IPA..."
-                # Fall back to creating a test IPA
-                CREATE_TEST_IPA=true
+                            echo "❌ Real iOS app IPA not found, creating test IPA..."
+            
+            # Ensure we're in the correct project directory
+            echo "🔍 Current working directory: $(pwd)"
+            if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ] && [[ "$(pwd)" != *"/project" ]]; then
+              echo "🔄 Moving to project directory..."
+              cd project
+              echo "🔍 Now in project directory: $(pwd)"
+            fi
+            
+            # Fall back to creating a test IPA
+            CREATE_TEST_IPA=true
               fi
             else
               echo "❌ No existing iOS app structure found, creating test IPA..."
@@ -566,11 +582,17 @@ jobs:
               
               # EMBED PROVISIONING PROFILE FIRST - BEFORE ANYTHING ELSE
               echo "🔐 Embedding provisioning profile FIRST..."
+              echo "🔍 Current directory for profile search: $(pwd)"
+              echo "🔍 Directory contents:"
+              ls -la | grep -i ".mobileprovision\|QAOnline" || echo "No provisioning profile visible"
+              
               if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
                 cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
                 echo "✅ Provisioning profile embedded: $(ls -la Payload/App.app/embedded.mobileprovision)"
               else
-                echo "❌ Provisioning profile not found!"
+                echo "❌ Provisioning profile not found in current directory!"
+                echo "🔍 Searching for provisioning profile in project..."
+                find . -name "*.mobileprovision" -type f 2>/dev/null | head -5 || echo "No .mobileprovision files found anywhere"
                 exit 1
               fi
               
