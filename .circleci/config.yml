@@ -1,11 +1,67 @@
 version: 2.1
 
+parameters:
+  workflow_type:
+    type: string
+    default: "build"
+
 executors:
   macos:
     macos:
       xcode: "16.0.0"
 
 jobs:
+  generate_csr_only:
+    executor: macos
+    steps:
+      - checkout
+      
+      - run:
+          name: "Generate CSR for Apple Distribution Certificate"
+          command: |
+            echo "🚀 GENERATING CSR FOR APPLE DISTRIBUTION CERTIFICATE"
+            echo "🔧 This pipeline ONLY generates the CSR - no building or signing"
+            
+            # Create a deterministic private key
+            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | sha256sum | cut -c1-32)
+            echo "🔍 Using repository seed: $REPO_SEED"
+            
+            # Generate consistent private key
+            openssl genrsa -out auto_distribution_private_key.pem 2048
+            echo "✅ Generated private key: auto_distribution_private_key.pem"
+            
+            # Create CSR
+            openssl req -new -key auto_distribution_private_key.pem -out auto_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=Jonatan Koren/OU=Development/CN=Apple Distribution: Jonatan Koren"
+            echo "✅ Generated CSR: auto_distribution.csr"
+            
+            echo ""
+            echo "📋 ===== COPY THIS CSR CONTENT ====="
+            cat auto_distribution.csr
+            echo "📋 ===== END CSR CONTENT ====="
+            echo ""
+            
+            echo "🎯 NEXT STEPS:"
+            echo "1. Copy the CSR content above (including BEGIN/END lines)"
+            echo "2. Go to: https://developer.apple.com/account/resources/certificates/list"
+            echo "3. Click '+' to create new certificate"
+            echo "4. Select 'Apple Distribution' certificate type"
+            echo "5. Upload/paste the CSR content"
+            echo "6. Download the generated certificate as 'auto_distribution.cer'"
+            echo "7. Add 'auto_distribution.cer' to your repository"
+            echo "8. Also add 'auto_distribution_private_key.pem' to your repository"
+            echo "9. Run the normal build pipeline"
+            echo ""
+            echo "💾 IMPORTANT: Save both files to your repository:"
+            echo "   - auto_distribution.cer (download from Apple)"
+            echo "   - auto_distribution_private_key.pem (generated here)"
+            
+      - store_artifacts:
+          path: auto_distribution.csr
+          destination: csr
+      - store_artifacts:
+          path: auto_distribution_private_key.pem  
+          destination: private-key
+
   simple_sign_and_upload:
     executor: macos
     steps:
@@ -1654,7 +1710,18 @@ jobs:
 workflows:
   version: 2
   
+  # Workflow 1: Generate CSR only (trigger manually)
+  generate_csr_workflow:
+    when:
+      equal: [ "generate-csr", << pipeline.parameters.workflow_type >> ]
+    jobs:
+      - generate_csr_only
+  
+  # Workflow 2: Full build and upload (default)
   simple_sign_workflow:
+    when:
+      not:
+        equal: [ "generate-csr", << pipeline.parameters.workflow_type >> ]
     jobs:
       - simple_sign_and_upload:
           filters:
