@@ -264,7 +264,7 @@ jobs:
             echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
             echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
-            echo '        platform: "ios",' >> fastlane/Fastfile
+            echo '        app_platform: "ios",' >> fastlane/Fastfile
             echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
             echo '        skip_submission: true,' >> fastlane/Fastfile
             echo '        api_key: api_key' >> fastlane/Fastfile
