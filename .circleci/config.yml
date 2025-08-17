@@ -610,16 +610,37 @@ jobs:
                 # Create app icons using ImageMagick if available
                 if command -v convert >/dev/null 2>&1; then
                   echo "🔧 Creating iPhone app icon (120x120)..."
-                  convert company_logo.png -resize 120x120^ -gravity center -extent 120x120 Payload/App.app/AppIcon60x60@2x.png
+                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/AppIcon60x60@2x.png
+                  convert company_logo.png -resize 120x120! -background white -alpha remove Payload/App.app/Icon-120.png
                   
                   echo "🔧 Creating iPad app icon (152x152)..."  
-                  convert company_logo.png -resize 152x152^ -gravity center -extent 152x152 Payload/App.app/AppIcon76x76@2x~ipad.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/AppIcon76x76@2x~ipad.png
+                  convert company_logo.png -resize 152x152! -background white -alpha remove Payload/App.app/Icon-152.png
                   
                   echo "🔧 Creating iPad Pro app icon (167x167)..."
-                  convert company_logo.png -resize 167x167^ -gravity center -extent 167x167 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
+                  convert company_logo.png -resize 167x167! -background white -alpha remove Payload/App.app/Icon-167.png
                   
                   echo "✅ Created app icons using your company logo with ImageMagick"
-                  ls -la Payload/App.app/AppIcon*.png
+                  
+                  # Create proper Assets.xcassets structure for icons
+                  echo "📱 Creating Assets.xcassets for proper icon management..."
+                  mkdir -p Payload/App.app/Assets.xcassets/AppIcon.appiconset
+                  
+                  # Copy icons to asset catalog with proper naming
+                  cp Payload/App.app/Icon-120.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-120.png
+                  cp Payload/App.app/Icon-152.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-152.png  
+                  cp Payload/App.app/Icon-167.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-167.png
+                  
+                  # Create Contents.json for the icon set
+                  printf '{\n  "images" : [\n    {\n      "filename" : "AppIcon-120.png",\n      "idiom" : "iphone",\n      "scale" : "2x",\n      "size" : "60x60"\n    },\n    {\n      "filename" : "AppIcon-152.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "76x76"\n    },\n    {\n      "filename" : "AppIcon-167.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "83.5x83.5"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  
+                  # Create root Contents.json for Assets.xcassets
+                  printf '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/Contents.json
+                  
+                  echo "✅ Created Assets.xcassets with proper icon structure"
+                  ls -la Payload/App.app/Icon*.png Payload/App.app/AppIcon*.png
+                  ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
                 else
                   # Fallback: Use company logo directly if ImageMagick not available
                   echo "⚠️ ImageMagick not available, using logo directly"
@@ -791,13 +812,21 @@ jobs:
               
               # Check app icons
               echo "🔍 Checking app icons..."
-              for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png"; do
+              for icon in "Icon-120.png" "Icon-152.png" "Icon-167.png" "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png"; do
                 if [ -f "Payload/App.app/$icon" ]; then
                   echo "✅ $icon exists ($(ls -la "Payload/App.app/$icon" | awk '{print $5}') bytes)"
                 else
                   echo "❌ CRITICAL: $icon missing!"
                 fi
               done
+              
+              # Check Assets.xcassets structure
+              if [ -d "Payload/App.app/Assets.xcassets/AppIcon.appiconset" ]; then
+                echo "✅ Assets.xcassets AppIcon set exists"
+                ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
+              else
+                echo "❌ CRITICAL: Assets.xcassets AppIcon set missing!"
+              fi
               
               # Check Launch Screen
               if [ -f "Payload/App.app/Base.lproj/LaunchScreen.storyboard" ]; then
