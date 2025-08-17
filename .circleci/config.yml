@@ -290,7 +290,7 @@ jobs:
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
             echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
-            echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
             echo '      )' >> fastlane/Fastfile
@@ -581,7 +581,7 @@ jobs:
             echo "🔍 Checking if app is registered in App Store Connect..."
             echo "📱 Bundle ID: com.qaonline.app"
             echo "📱 Team ID: BL7NANM4RM"
-            echo "📱 API Key ID: ZA7M4DJPV8"
+            echo "📱 API Key ID: GFAD2LJGMF"
             echo ""
             echo "⚠️  IMPORTANT: If the upload fails, please ensure:"
             echo "   1. App 'com.qaonline.app' is registered in App Store Connect"
@@ -611,7 +611,7 @@ jobs:
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
             echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
-            echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
             echo '      )' >> fastlane/Fastfile
