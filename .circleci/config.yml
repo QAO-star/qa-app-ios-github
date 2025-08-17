@@ -106,27 +106,71 @@ jobs:
             echo "⚠️ Both Python and Fastlane API authentication failed with 401 errors"
             echo "🎯 SOLUTION: Create Apple Distribution certificate manually and proceed"
             
-            # Since API is failing, let's create a manual certificate request
-            echo "🔐 Creating manual certificate signing request for Apple Distribution..."
+            # Since API is failing, let's create a manual certificate request in the pipeline
+            echo "🔐 Creating Apple Distribution certificate request in macOS pipeline..."
             
             # Generate a new private key for distribution certificate
             openssl genrsa -out apple_distribution_private_key.pem 2048
+            echo "✅ Private key generated: apple_distribution_private_key.pem"
             
             # Create certificate signing request for Apple Distribution
             openssl req -new -key apple_distribution_private_key.pem -out apple_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=QA Online Ltd/OU=Mobile Development/CN=Apple Distribution: QA Online Ltd"
+            echo "✅ Certificate Signing Request generated: apple_distribution.csr"
             
-            echo "📋 MANUAL CERTIFICATE CREATION REQUIRED:"
-            echo "   1. Download apple_distribution.csr from the artifacts"
-            echo "   2. Go to Apple Developer Console > Certificates"
-            echo "   3. Create new 'Apple Distribution' certificate using the CSR"
-            echo "   4. Download the .cer file and add it to your repository"
-            echo "   5. Re-run the pipeline"
+            # Display the CSR content for easy copying
+            echo "📋 CERTIFICATE SIGNING REQUEST (CSR) CONTENT:"
+            echo "=================================================="
+            cat apple_distribution.csr
+            echo "=================================================="
+            echo ""
+            
+            # Create artifacts directory and copy files for download
+            mkdir -p /tmp/certificate-files
+            cp apple_distribution_private_key.pem /tmp/certificate-files/
+            cp apple_distribution.csr /tmp/certificate-files/
+            echo "✅ Certificate files saved to artifacts"
+            
+            echo "📋 NEXT STEPS TO CREATE APPLE DISTRIBUTION CERTIFICATE:"
+            echo "   1. Copy the CSR content above (between ==== lines)"
+            echo "   2. Go to https://developer.apple.com/account/resources/certificates/list"
+            echo "   3. Click '+' to create new certificate"
+            echo "   4. Select 'Apple Distribution' certificate type"
+            echo "   5. Paste the CSR content"
+            echo "   6. Download the generated .cer file"
+            echo "   7. Add the .cer file to your repository as 'apple_distribution.cer'"
+            echo "   8. Re-run the pipeline"
+            echo ""
+            echo "💾 Files available in CircleCI artifacts:"
+            echo "   - apple_distribution_private_key.pem (keep this secure!)"
+            echo "   - apple_distribution.csr (use this to create certificate)"
             echo ""
             echo "🎯 WORKAROUND: Proceeding with existing iPhone Distribution certificate"
             echo "   This may work for some Apple Developer accounts"
             echo "   Recent Apple changes sometimes accept iPhone Distribution for App Store uploads"
             echo ""
             echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
+            
+            # Check if Apple Distribution certificate was added to the repository
+            if [ -f "apple_distribution.cer" ]; then
+              echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE IN REPOSITORY!"
+              echo "🔐 Installing Apple Distribution certificate..."
+              
+              # Import the Apple Distribution certificate
+              security import apple_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+              echo "✅ Apple Distribution certificate installed!"
+              
+              # Also import the private key if it exists
+              if [ -f "apple_distribution_private_key.pem" ]; then
+                echo "🔐 Installing Apple Distribution private key..."
+                security import apple_distribution_private_key.pem -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+                echo "✅ Apple Distribution private key installed!"
+              fi
+              
+              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IS NOW AVAILABLE FOR SIGNING!"
+            else
+              echo "⚠️ No apple_distribution.cer found in repository"
+              echo "📋 Follow the steps above to create the Apple Distribution certificate"
+            fi
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
