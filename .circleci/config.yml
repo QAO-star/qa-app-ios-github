@@ -123,22 +123,6 @@ jobs:
               exit 1
             fi
             
-            # Create the initial IPA
-            zip -r App.ipa Payload/
-            echo "✅ Created initial IPA"
-            
-            # Extract the IPA
-            echo "📦 Extracting IPA..."
-            unzip -q App.ipa -d Payload/
-            
-            # RE-EMBED PROVISIONING PROFILE AFTER EXTRACTION
-            echo "🔐 Re-embedding provisioning profile after extraction..."
-            cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-            echo "✅ Provisioning profile re-embedded: $(ls -la Payload/App.app/embedded.mobileprovision)"
-            
-            # Try to sign the app bundle
-            echo "🔐 Attempting to sign app bundle..."
-            
             # Get the certificate hash - more robust approach
             echo "🔍 Available identities in build keychain:"
             security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
@@ -155,7 +139,6 @@ jobs:
             if [ -z "$CERT_HASH" ]; then
               echo "❌ Could not extract certificate hash"
               echo "🔧 Creating unsigned IPA for manual signing..."
-              rm -f App.ipa
               zip -r App-unsigned.ipa Payload/
               rm -rf Payload/
               echo "📦 Created unsigned IPA: App-unsigned.ipa"
@@ -182,7 +165,6 @@ jobs:
               else
                 echo "⚠️ All signing attempts failed, creating unsigned IPA..."
                 echo "📦 Creating unsigned IPA for manual signing..."
-                rm -f App.ipa
                 zip -r App-unsigned.ipa Payload/
                 rm -rf Payload/
                 echo "📦 Created unsigned IPA: App-unsigned.ipa"
@@ -209,27 +191,19 @@ jobs:
             echo "🔍 Verifying app signature..."
             codesign -dv --verbose=4 Payload/App.app
             
-            # Create signed IPA
+            # Create signed IPA - SIMPLIFIED PROCESS
             echo "📦 Creating signed IPA..."
-            rm -f App.ipa
             zip -r App-signed.ipa Payload/
             
             # FINAL IPA VERIFICATION
             echo "🔍 FINAL IPA VERIFICATION..."
             echo "📦 IPA file size: $(ls -la App-signed.ipa | awk '{print $5}')"
-            echo "📦 IPA contents:"
-            unzip -l App-signed.ipa | head -20
             echo "📦 Checking for embedded.mobileprovision in IPA:"
             if unzip -l App-signed.ipa | grep embedded.mobileprovision; then
               echo "✅ embedded.mobileprovision found in IPA!"
             else
               echo "❌ CRITICAL: embedded.mobileprovision NOT found in IPA!"
-              echo "🔧 Re-creating IPA with explicit provisioning profile..."
-              rm -f App-signed.ipa
-              # Ensure profile is embedded one more time
-              cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-              zip -r App-signed.ipa Payload/
-              echo "✅ IPA re-created with provisioning profile"
+              exit 1
             fi
             
             # Clean up
