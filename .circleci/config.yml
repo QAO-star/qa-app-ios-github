@@ -111,6 +111,37 @@ jobs:
               echo "🔄 Syncing Capacitor to iOS..."
               npx cap sync ios
               
+              # 🎯 CRITICAL: Fix the real iOS app's Info.plist and icons BEFORE building
+              echo "=================================================="
+              echo "🎯 FIXING REAL iOS APP FOR APPLE VALIDATION"
+              echo "=================================================="
+              
+              # Download and create icons for the REAL iOS app
+              echo "📥 Downloading company logo for real iOS app..."
+              LOGO_URL="https://lh3.googleusercontent.com/XOy7immRJBBfHefWlrJngHqwuIjeai8sBkF_Y6jm_Tie4rIP3nnHqkNCPVqJ5joro78wpYWwnaq_1z0_jxK-ag"
+              curl -L -o company_logo.png "$LOGO_URL"
+              
+              # Install ImageMagick if needed
+              if ! command -v convert >/dev/null 2>&1; then
+                echo "📦 Installing ImageMagick..."
+                brew install imagemagick
+              fi
+              
+              # Create icons for the REAL iOS app
+              echo "🎨 Creating app icons for REAL iOS project..."
+              convert company_logo.png -resize 120x120! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png
+              convert company_logo.png -resize 152x152! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x~ipad.png
+              convert company_logo.png -resize 167x167! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x~ipad.png
+              convert company_logo.png -resize 1024x1024! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+              
+              # Update the REAL iOS app's Info.plist with proper icon references
+              echo "📝 Updating real iOS app Info.plist with icon references..."
+              # Add CFBundleIconName to the real Info.plist (simple approach)
+              echo "🔧 Adding CFBundleIconName to real iOS Info.plist..."
+              sed -i '' 's/<key>UIViewControllerBasedStatusBarAppearance<\/key>/<key>CFBundleIconName<\/key><string>AppIcon<\/string><key>UIViewControllerBasedStatusBarAppearance<\/key>/' ios/App/App/Info.plist
+              
+              echo "✅ Real iOS app updated with proper icons and Info.plist"
+              
               # Return to iOS app directory
               cd ios/App
               
@@ -352,6 +383,7 @@ jobs:
                 fi
               else
                 echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
+                echo "🔧 STOPPING TEST IPA CREATION - FIXING REAL iOS BUILD INSTEAD"
                 echo "🔍 Checking if we can use existing app structure..."
                 
                 # Check if there's already a working app structure in the Payload directory
@@ -516,12 +548,76 @@ jobs:
             CREATE_TEST_IPA=true
               fi
             else
-              echo "❌ No existing iOS app structure found, creating test IPA..."
-              CREATE_TEST_IPA=true
+              echo "❌ No existing iOS app structure found"
+              echo "🚫 TEST IPA CREATION DISABLED - MUST FIX REAL iOS BUILD"
+              echo "🔧 Attempting to fix and rebuild the real iOS project..."
+              
+              # Go back to the iOS project and fix it
+              cd ios/App
+              
+              # Apply build fixes
+              echo "🔧 Applying iOS build fixes..."
+              
+              # Fix deployment target
+              sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]*\.[0-9]*/IPHONEOS_DEPLOYMENT_TARGET = 12.0/g' App.xcodeproj/project.pbxproj || echo "Could not update deployment target"
+              
+              # Disable code signing completely  
+              sed -i '' 's/CODE_SIGN_STYLE = [^;]*/CODE_SIGN_STYLE = Manual/g' App.xcodeproj/project.pbxproj || echo "Could not update code sign style"
+              sed -i '' 's/CODE_SIGNING_REQUIRED = [^;]*/CODE_SIGNING_REQUIRED = NO/g' App.xcodeproj/project.pbxproj || echo "Could not disable code signing"
+              
+              # Retry the build with aggressive fixes
+              echo "🔧 Retrying iOS build with fixes..."
+              set +e
+              xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="12.0" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE="" CODE_SIGN_IDENTITY="" 2>&1 | tee /dev/stderr
+              FIXED_BUILD_EXIT_CODE=$?
+              set -e
+              
+              if [ $FIXED_BUILD_EXIT_CODE -eq 0 ]; then
+                echo "✅ iOS build fixed and succeeded!"
+                # Extract IPA from the successful build
+                echo "📦 Extracting IPA from fixed iOS build..."
+                if [ -d "App.xcarchive" ]; then
+                  # Create simple export options
+                  echo '<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>development</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>stripSwiftSymbols</key>
+    <true/>
+</dict>
+</plist>' > exportOptions-simple.plist
+                  
+                  # Export the archive to IPA
+                  xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-simple.plist || echo "Export failed, but continuing"
+                  
+                  # Move the IPA to project root
+                  find . -name "*.ipa" -exec mv {} ../../App.ipa \;
+                  cd ../..
+                  
+                  if [ -f "App.ipa" ]; then
+                    echo "✅ Successfully created real iOS app IPA!"
+                    REAL_IPA_CREATED=true
+                  else
+                    echo "❌ CRITICAL: Failed to export IPA from fixed build"
+                    exit 1
+                  fi
+                else
+                  echo "❌ CRITICAL: No archive created even after fixes"
+                  exit 1
+                fi
+              else
+                echo "❌ CRITICAL: iOS build still failing after all fixes"
+                echo "This requires manual inspection of the iOS project"
+                exit 1
+              fi
             fi
             
-            # If we need to create a test IPA (fallback)
-            if [ "$CREATE_TEST_IPA" = "true" ]; then
+            # 🚫 DISABLED: Test IPA creation section (was fallback)
+            if false; then  # This section is now disabled
               echo "=================================================="
               echo "🔐 CREATING TEST IPA WITH VALIDATION FIXES"
               echo "=================================================="
