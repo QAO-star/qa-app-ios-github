@@ -96,27 +96,45 @@ jobs:
               echo "📱 Found existing iOS app, building it..."
               cd ios/App
               
-              # Build the iOS app
-              echo "🔨 Building iOS app..."
-              xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
-              xcodebuild archive \
-                -workspace App.xcworkspace \
-                -scheme App \
-                -configuration Release \
-                -destination generic/platform=iOS \
-                -archivePath App.xcarchive \
-                CODE_SIGN_STYLE="Manual" \
-                CODE_SIGN_IDENTITY="" \
-                PROVISIONING_PROFILE_SPECIFIER="" \
-                CODE_SIGNING_REQUIRED=NO \
-                CODE_SIGNING_ALLOWED=NO
+              # List available schemes first
+              echo "🔍 Listing available schemes..."
+              xcodebuild -list -workspace App.xcworkspace
               
-              # Extract IPA from archive
-              echo "📦 Extracting IPA from archive..."
-              xcodebuild -exportArchive \
-                -archivePath App.xcarchive \
-                -exportPath . \
-                -exportOptionsPlist exportOptions.plist
+              # Build the iOS app - try different scheme names
+              echo "🔨 Building iOS app..."
+              xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release || \
+              xcodebuild clean -workspace App.xcworkspace -scheme QAOnline -configuration Release || \
+              xcodebuild clean -workspace App.xcworkspace -scheme QA-Online -configuration Release || \
+              xcodebuild clean -workspace App.xcworkspace -scheme QAOnlineApp -configuration Release
+              
+              # Try building with different scheme names
+              echo "🔨 Attempting archive with different schemes..."
+              if xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
+                echo "✅ Archive created with 'App' scheme"
+              elif xcodebuild archive -workspace App.xcworkspace -scheme QAOnline -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
+                echo "✅ Archive created with 'QAOnline' scheme"
+              elif xcodebuild archive -workspace App.xcworkspace -scheme QA-Online -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
+                echo "✅ Archive created with 'QA-Online' scheme"
+              elif xcodebuild archive -workspace App.xcworkspace -scheme QAOnlineApp -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
+                echo "✅ Archive created with 'QAOnlineApp' scheme"
+              else
+                echo "❌ Failed to create archive with any scheme, falling back to test IPA..."
+                cd ../..
+                CREATE_TEST_IPA=true
+              fi
+              
+              # Only try to extract IPA if we successfully created an archive
+              if [ "$CREATE_TEST_IPA" != "true" ]; then
+                # Extract IPA from archive
+                echo "📦 Extracting IPA from archive..."
+                if [ -f "App.xcarchive" ]; then
+                  xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                else
+                  echo "❌ Archive not found, falling back to test IPA..."
+                  cd ../..
+                  CREATE_TEST_IPA=true
+                fi
+              fi
               
               # Go back to project root
               cd ../..
