@@ -29,6 +29,21 @@ jobs:
             security unlock-keychain -p "temp" build.keychain
             security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
             
+            # FIRST PRIORITY: Install Apple Distribution certificate if it exists
+            echo "🔍 PRIORITY: Checking for Apple Distribution certificate in repository..."
+            ls -la distribution.cer 2>/dev/null && echo "✅ distribution.cer found!" || echo "❌ distribution.cer not found"
+            
+            # Install Apple Distribution certificate IMMEDIATELY
+            if [ -f "distribution.cer" ]; then
+              echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: distribution.cer"
+              echo "🔐 Installing Apple Distribution certificate..."
+              security import distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A
+              echo "✅ Apple Distribution certificate installed!"
+              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IS NOW AVAILABLE FOR SIGNING!"
+            else
+              echo "⚠️ No Apple Distribution certificate found in repository"
+            fi
+            
             # Install the existing provisioning profile
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
               echo "📄 Installing existing provisioning profile..."
@@ -150,41 +165,8 @@ jobs:
             echo ""
             echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
             
-            # CRITICAL: Install Apple Distribution certificate BEFORE anything else
-            echo "🔍 Checking for Apple Distribution certificate in repository..."
-            ls -la distribution.cer 2>/dev/null || echo "❌ distribution.cer not found"
-            ls -la apple_distribution.cer 2>/dev/null || echo "❌ apple_distribution.cer not found"
-            
-            # Check if Apple Distribution certificate was added to the repository
-            if [ -f "distribution.cer" ]; then
-              echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: distribution.cer"
-              echo "🔐 Installing Apple Distribution certificate..."
-              
-              # Import the Apple Distribution certificate
-              security import distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Apple Distribution certificate installed!"
-              
-              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IS NOW AVAILABLE FOR SIGNING!"
-            elif [ -f "apple_distribution.cer" ]; then
-              echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: apple_distribution.cer"
-              echo "🔐 Installing Apple Distribution certificate..."
-              
-              # Import the Apple Distribution certificate
-              security import apple_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Apple Distribution certificate installed!"
-              
-              # Also import the private key if it exists
-              if [ -f "apple_distribution_private_key.pem" ]; then
-                echo "🔐 Installing Apple Distribution private key..."
-                security import apple_distribution_private_key.pem -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-                echo "✅ Apple Distribution private key installed!"
-              fi
-              
-              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IS NOW AVAILABLE FOR SIGNING!"
-            else
-              echo "⚠️ No distribution.cer or apple_distribution.cer found in repository"
-              echo "📋 Follow the steps above to create the Apple Distribution certificate"
-            fi
+            # Apple Distribution certificate already installed at the beginning of this step
+            echo "🔍 Apple Distribution certificate should now be available in keychain if it exists"
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
