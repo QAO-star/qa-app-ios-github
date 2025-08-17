@@ -406,7 +406,24 @@ jobs:
                     cd ios/App
                     echo "🔍 Back in directory: $(pwd)"
                     
-                    echo "📦 Creating IPA with embedded provisioning profile..."
+                    echo "🔐 Code signing the real iOS app with embedded provisioning profile..."
+                    
+                    # Sign embedded frameworks first
+                    echo "🔐 Signing embedded frameworks..."
+                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" Payload/App.app/Frameworks/Capacitor.framework/Capacitor
+                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" Payload/App.app/Frameworks/Cordova.framework/Cordova
+                    
+                    # Sign the main app bundle
+                    echo "🔐 Signing main application bundle..."
+                    codesign --force --sign "iPhone Distribution: QA Online Ltd. (BL7NANM4RM)" --entitlements ../../../App.entitlements Payload/App.app
+                    
+                    # Verify signatures
+                    echo "🔍 Verifying signatures..."
+                    codesign --verify --verbose Payload/App.app/Frameworks/Capacitor.framework || echo "❌ Capacitor framework signature verification failed"
+                    codesign --verify --verbose Payload/App.app/Frameworks/Cordova.framework || echo "❌ Cordova framework signature verification failed"
+                    codesign --verify --verbose Payload/App.app || echo "❌ Main app signature verification failed"
+                    
+                    echo "📦 Creating final signed IPA with embedded provisioning profile..."
                     zip -r App.ipa Payload/
                     rm -rf Payload
                     
