@@ -661,10 +661,9 @@ jobs:
                 # Set development team and code signing style for App target
                 sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
                 sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
-                # Add provisioning profile setting for App target in Release configuration
-                sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;\
-                PROVISIONING_PROFILE_SPECIFIER = "'"$PROFILE_NAME"'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile"
-                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and profile $PROFILE_NAME"
+                # Remove any existing provisioning profile specifier to let Xcode auto-select the correct one
+                sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove provisioning profile specifier"
+                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID (Xcode will auto-select matching provisioning profile)"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
@@ -672,8 +671,8 @@ jobs:
                 
                 # Capture both stdout and stderr, but also show real-time output
                 # Use proper code signing with our Apple Distribution certificate
-                # Apply team ID and code signing identity globally, but avoid provisioning profile conflicts with CocoaPods
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" CODE_SIGN_STYLE="Manual" 2>&1 | tee /dev/stderr)
+                # Apply team ID and code signing identity globally, let Xcode automatically select matching provisioning profile
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" CODE_SIGN_STYLE="Manual" PROVISIONING_PROFILE="" 2>&1 | tee /dev/stderr)
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
