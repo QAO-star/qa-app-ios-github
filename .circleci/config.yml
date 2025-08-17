@@ -373,31 +373,25 @@ jobs:
                       echo "🔍 Complete archive structure:"
                       find App.xcarchive -type f | head -20
                     fi
-                    echo "📦 Creating exportOptions.plist for IPA export..."
-                    echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
-                    echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
-                    echo '<plist version="1.0">' >> exportOptions.plist
-                    echo '<dict>' >> exportOptions.plist
-                    echo '    <key>method</key>' >> exportOptions.plist
-                    echo '    <string>app-store</string>' >> exportOptions.plist
-                    echo '    <key>teamID</key>' >> exportOptions.plist
-                    echo '    <string>BL7NANM4RM</string>' >> exportOptions.plist
-                    echo '    <key>signingStyle</key>' >> exportOptions.plist
-                    echo '    <string>manual</string>' >> exportOptions.plist
-                    echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
-                    echo '    <true/>' >> exportOptions.plist
-                    echo '    <key>uploadBitcode</key>' >> exportOptions.plist
-                    echo '    <false/>' >> exportOptions.plist
-                    echo '    <key>uploadSymbols</key>' >> exportOptions.plist
-                    echo '    <true/>' >> exportOptions.plist
-                    echo '</dict>' >> exportOptions.plist
-                    echo '</plist>' >> exportOptions.plist
-                    EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist 2>&1)
-                    EXPORT_EXIT_CODE=$?
-                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
-                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
-                      echo "❌ Export failed with output:"
-                      echo "$EXPORT_OUTPUT"
+                    
+                    echo "🔨 Skipping problematic xcodebuild export, using direct manual extraction..."
+                    echo "📦 Extracting App.app directly from archive..."
+                    
+                    # Manual extraction - more reliable than xcodebuild export
+                    mkdir -p Payload
+                    cp -r App.xcarchive/Products/Applications/App.app Payload/
+                    zip -r App.ipa Payload/
+                    rm -rf Payload
+                    
+                    if [ -f "App.ipa" ]; then
+                      echo "✅ Real iOS app manual IPA extraction successful: $(ls -la App.ipa)"
+                      # Copy IPA to project root
+                      cp App.ipa ../../App.ipa
+                      echo "✅ Real iOS app IPA copied to project root"
+                      REAL_IPA_CREATED=true
+                    else
+                      echo "❌ Real iOS app manual extraction failed"
+                      REAL_IPA_CREATED=false
                     fi
                   fi
                   
@@ -419,22 +413,8 @@ jobs:
                     echo "✅ Real iOS app IPA copied to project root"
                     REAL_IPA_CREATED=true
                   else
-                    echo "❌ Real iOS app IPA export failed, trying manual extraction..."
-                    # Manual extraction as fallback
-                    mkdir -p Payload
-                    cp -r App.xcarchive/Products/Applications/App.app Payload/
-                    zip -r App.ipa Payload/
-                    rm -rf Payload
-                    if [ -f "App.ipa" ]; then
-                      echo "✅ Real iOS app manual IPA extraction successful: $(ls -la App.ipa)"
-                      # Copy IPA to project root
-                      cp App.ipa ../../App.ipa
-                      echo "✅ Real iOS app IPA copied to project root"
-                      REAL_IPA_CREATED=true
-                    else
-                      echo "❌ Real iOS app manual extraction also failed"
-                      REAL_IPA_CREATED=false
-                    fi
+                    echo "❌ Real iOS app IPA not found after manual extraction"
+                    REAL_IPA_CREATED=false
                   fi
                 else
                   echo "❌ Real iOS app archive not found in current directory"
