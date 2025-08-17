@@ -288,8 +288,8 @@ jobs:
             echo '      # Use API key file directly with known values' >> fastlane/Fastfile
             echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '        key_id: "ZA7M4DJPV8",' >> fastlane/Fastfile
-            echo '        issuer_id: "6751101564",' >> fastlane/Fastfile
+            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
+            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
             echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
@@ -554,14 +554,22 @@ jobs:
             
             # Verify API key file exists
             echo "🔍 Verifying API key file exists..."
-            if [ ! -f "AuthKey_ZA7M4DJPV8.p8" ]; then
-              echo "❌ API key file not found at AuthKey_ZA7M4DJPV8.p8"
+            if [ ! -f "AuthKey_GFAD2LJGMF.p8" ]; then
+              echo "❌ API key file not found at AuthKey_GFAD2LJGMF.p8"
               echo "📁 Current directory: $(pwd)"
               echo "📁 Available files in project root:"
               ls -la | grep -E "(AuthKey|\.p8)" || echo "No .p8 files found"
-              exit 1
+              echo ""
+              echo "🔧 Creating API key file with your provided key..."
+              echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
+              echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
+              echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
+              echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
+              echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
+              echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
+              echo "✅ API key file created: AuthKey_GFAD2LJGMF.p8"
             fi
-            echo "✅ API key file found: AuthKey_ZA7M4DJPV8.p8"
+            echo "✅ API key file found: AuthKey_GFAD2LJGMF.p8"
             
             # Debug environment variables
             echo "🔍 Debugging environment variables:"
@@ -601,8 +609,8 @@ jobs:
             echo '      # Use API key file directly with known values' >> fastlane/Fastfile
             echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '        key_id: "ZA7M4DJPV8",' >> fastlane/Fastfile
-            echo '        issuer_id: "6751101564",' >> fastlane/Fastfile
+            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
+            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
             echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
             echo '        duration: 1200,' >> fastlane/Fastfile
             echo '        in_house: false' >> fastlane/Fastfile
