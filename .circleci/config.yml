@@ -711,6 +711,8 @@ jobs:
             echo '      UI.message("🔍 Or the IPA file has metadata issues")' >> fastlane/Fastfile
             echo '      raise e' >> fastlane/Fastfile
             echo '    end' >> fastlane/Fastfile
+            echo '  end' >> fastlane/Fastfile
+            echo 'end' >> fastlane/Fastfile
 
             # Create Appfile using echo commands
             echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
