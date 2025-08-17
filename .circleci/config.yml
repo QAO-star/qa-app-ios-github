@@ -59,9 +59,13 @@ jobs:
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
+            
+            # Try P12 as backup if it exists
+            if [ -f "ios_distribution.p12" ]; then
+              echo "🔐 Trying P12 certificate as backup..."
               
               # Try different password combinations
-              PASSWORDS=("" "password" "123456" "admin" "ios" "apple" "developer")
+              PASSWORDS=("" "Geok1800!" "password" "123456" "admin" "ios" "apple" "developer")
               
               for PASSWORD in "${PASSWORDS[@]}"; do
                 echo "🔐 Trying password: ${PASSWORD:-'empty'}"
