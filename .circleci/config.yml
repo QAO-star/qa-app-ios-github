@@ -93,47 +93,125 @@ jobs:
             
             # Check if we have an existing iOS app to use
             if [ -d "ios/App/App.xcworkspace" ]; then
-              echo "📱 Found existing iOS app, building it..."
+              echo "📱 Found existing iOS app, setting up schemes..."
               cd ios/App
               
-              # List available schemes first
+              # First, let's check if we need to install pods
+              if [ ! -d "Pods" ]; then
+                echo "📦 Installing CocoaPods dependencies..."
+                pod install
+              fi
+              
+              # Create a scheme for the App target
+              echo "🔧 Creating scheme for App target..."
+              mkdir -p App.xcodeproj/xcshareddata/xcschemes
+              
+              # Create the scheme file using echo commands
+              echo '<?xml version="1.0" encoding="UTF-8"?>' > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '<Scheme' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   LastUpgradeVersion = "1500"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   version = "1.7">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <BuildAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      parallelizeBuildables = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildImplicitDependencies = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      <BuildActionEntries>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         <BuildActionEntry' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            buildForTesting = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            buildForRunning = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            buildForProfiling = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            buildForArchiving = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            buildForAnalyzing = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '               BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '               BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '               BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '               BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '               ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         </BuildActionEntry>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      </BuildActionEntries>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </BuildAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <TestAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildConfiguration = "Debug"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      shouldUseLaunchSchemeArgsEnv = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      shouldAutocreateTestPlan = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </TestAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <LaunchAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildConfiguration = "Debug"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      launchStyle = "0"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      useCustomWorkingDirectory = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      ignoresPersistentStateOnLaunch = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      debugDocumentVersioning = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      debugServiceExtension = "internal"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      allowLocationSimulation = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      <BuildableProductRunnable' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         runnableDebuggingMode = "0">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      </BuildableProductRunnable>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </LaunchAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <ProfileAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildConfiguration = "Release"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      shouldUseLaunchSchemeArgsEnv = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      savedToolIdentifier = ""' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      useCustomWorkingDirectory = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      debugDocumentVersioning = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      <BuildableProductRunnable' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         runnableDebuggingMode = "0">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '            ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '         </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      </BuildableProductRunnable>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </ProfileAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <AnalyzeAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildConfiguration = "Debug">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </AnalyzeAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   <ArchiveAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      buildConfiguration = "Release"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '      revealArchiveInOrganizer = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '   </ArchiveAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              echo '</Scheme>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
+              
+              echo "✅ Scheme created for App target"
+              
+              # List available schemes to verify
               echo "🔍 Listing available schemes..."
               xcodebuild -list -workspace App.xcworkspace
               
-              # Build the iOS app - try different scheme names
-              echo "🔨 Building iOS app..."
-              xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release || \
-              xcodebuild clean -workspace App.xcworkspace -scheme QAOnline -configuration Release || \
-              xcodebuild clean -workspace App.xcworkspace -scheme QA-Online -configuration Release || \
-              xcodebuild clean -workspace App.xcworkspace -scheme QAOnlineApp -configuration Release
+              # Build the iOS app with the new scheme
+              echo "🔨 Building iOS app with App scheme..."
+              xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
               
-              # Try building with different scheme names
-              echo "🔨 Attempting archive with different schemes..."
               if xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
-                echo "✅ Archive created with 'App' scheme"
-              elif xcodebuild archive -workspace App.xcworkspace -scheme QAOnline -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
-                echo "✅ Archive created with 'QAOnline' scheme"
-              elif xcodebuild archive -workspace App.xcworkspace -scheme QA-Online -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
-                echo "✅ Archive created with 'QA-Online' scheme"
-              elif xcodebuild archive -workspace App.xcworkspace -scheme QAOnlineApp -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO; then
-                echo "✅ Archive created with 'QAOnlineApp' scheme"
-              else
-                echo "❌ Failed to create archive with any scheme, falling back to test IPA..."
-                cd ../..
-                CREATE_TEST_IPA=true
-              fi
-              
-              # Only try to extract IPA if we successfully created an archive
-              if [ "$CREATE_TEST_IPA" != "true" ]; then
+                echo "✅ Archive created successfully"
+                
                 # Extract IPA from archive
                 echo "📦 Extracting IPA from archive..."
                 if [ -f "App.xcarchive" ]; then
                   xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                  echo "✅ IPA extracted successfully"
                 else
-                  echo "❌ Archive not found, falling back to test IPA..."
+                  echo "❌ Archive not found"
                   cd ../..
                   CREATE_TEST_IPA=true
                 fi
+              else
+                echo "❌ Failed to create archive, falling back to test IPA..."
+                cd ../..
+                CREATE_TEST_IPA=true
               fi
               
               # Go back to project root
@@ -330,7 +408,7 @@ jobs:
             echo '  lane :upload do' >> fastlane/Fastfile
             echo '    begin' >> fastlane/Fastfile
             echo '      # Use API key file directly with known values' >> fastlane/Fastfile
-            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
+            echo '      UI.message("�� Using API key file with known values...")' >> fastlane/Fastfile
             echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
             echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
             echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
