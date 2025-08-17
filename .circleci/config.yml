@@ -669,11 +669,14 @@ jobs:
                 # Set development team and code signing style for App target
                 sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
                 sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
-                # Clean up any existing provisioning profile specifiers to let Xcode auto-select
+                # Clean up any existing provisioning profile specifiers first
                 sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
-                # Also clean up any PROVISIONING_PROFILE settings
                 sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
-                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID (automatic provisioning profile selection)"
+                
+                # Set the specific provisioning profile UUID for the App target only
+                sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;/PRODUCT_BUNDLE_IDENTIFIER = com.qaonline.app;\
+                PROVISIONING_PROFILE_SPECIFIER = "'"$PROFILE_SPECIFIER"'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile specifier"
+                echo "✅ Project configured for manual signing with team $APPLE_TEAM_ID and profile $PROFILE_SPECIFIER"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
