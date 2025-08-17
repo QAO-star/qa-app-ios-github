@@ -204,7 +204,15 @@ jobs:
               
               # Try to build archive with better error handling
               echo "🔨 Creating archive for real iOS app..."
-              if xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1; then
+              echo "🔍 Running xcodebuild archive command..."
+              
+              # Run xcodebuild with full output capture
+              BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_STYLE="Manual" CODE_SIGN_IDENTITY="" PROVISIONING_PROFILE_SPECIFIER="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1)
+              BUILD_EXIT_CODE=$?
+              
+              echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
+              
+              if [ $BUILD_EXIT_CODE -eq 0 ]; then
                 echo "✅ Archive created successfully for real iOS app"
                 
                 # Extract IPA from archive
@@ -219,7 +227,13 @@ jobs:
                   # Try to export using exportOptions.plist if it exists
                   if [ -f "exportOptions.plist" ]; then
                     echo "📦 Using exportOptions.plist for IPA export..."
-                    xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                    EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist 2>&1)
+                    EXPORT_EXIT_CODE=$?
+                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
+                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
+                      echo "❌ Export failed with output:"
+                      echo "$EXPORT_OUTPUT"
+                    fi
                   else
                     echo "📦 Creating exportOptions.plist for IPA export..."
                     echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
@@ -240,7 +254,13 @@ jobs:
                     echo '    <true/>' >> exportOptions.plist
                     echo '</dict>' >> exportOptions.plist
                     echo '</plist>' >> exportOptions.plist
-                    xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                    EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist 2>&1)
+                    EXPORT_EXIT_CODE=$?
+                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
+                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
+                      echo "❌ Export failed with output:"
+                      echo "$EXPORT_OUTPUT"
+                    fi
                   fi
                   
                   # Check if IPA was created
@@ -276,6 +296,8 @@ jobs:
                 fi
               else
                 echo "❌ Failed to create real iOS app archive"
+                echo "🔍 Build failed with output:"
+                echo "$BUILD_OUTPUT"
                 REAL_IPA_CREATED=false
               fi
               
