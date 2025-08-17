@@ -378,8 +378,26 @@ jobs:
                     echo "📦 Extracting App.app directly from archive..."
                     
                     # Manual extraction - more reliable than xcodebuild export
+                    echo "📦 Creating Payload directory and copying app..."
                     mkdir -p Payload
                     cp -r App.xcarchive/Products/Applications/App.app Payload/
+                    
+                    echo "🔐 Embedding provisioning profile in real iOS app..."
+                    # Go back to project root to find provisioning profile
+                    cd ../../..
+                    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                      echo "✅ Found provisioning profile, embedding it..."
+                      cp QAOnlineAppStoreProfile.mobileprovision ios/App/Payload/App.app/embedded.mobileprovision
+                      echo "✅ Provisioning profile embedded successfully"
+                    else
+                      echo "❌ Provisioning profile not found!"
+                      ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found"
+                    fi
+                    
+                    # Go back to ios/App directory
+                    cd ios/App
+                    
+                    echo "📦 Creating IPA with embedded provisioning profile..."
                     zip -r App.ipa Payload/
                     rm -rf Payload
                     
