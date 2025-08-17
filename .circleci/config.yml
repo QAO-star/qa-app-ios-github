@@ -685,7 +685,8 @@ jobs:
                 # Use proper code signing with our Apple Distribution certificate
                 # Use automatic code signing with our Apple Distribution certificate
                 # Xcode will automatically generate a compatible provisioning profile
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                # Remove CODE_SIGN_IDENTITY for automatic signing - Xcode handles identity selection
+                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
