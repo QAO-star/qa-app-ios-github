@@ -577,19 +577,19 @@ jobs:
                 # Extract IPA from the successful build
                 echo "📦 Extracting IPA from fixed iOS build..."
                 if [ -d "App.xcarchive" ]; then
-                  # Create simple export options
-                  echo '<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>development</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-</dict>
-</plist>' > exportOptions-simple.plist
+                  # Create simple export options using printf to avoid YAML issues
+                  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-simple.plist
+                  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-simple.plist
+                  printf '%s\n' '<plist version="1.0">' >> exportOptions-simple.plist
+                  printf '%s\n' '<dict>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <key>method</key>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <string>development</string>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <string>manual</string>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <true/>' >> exportOptions-simple.plist
+                  printf '%s\n' '</dict>' >> exportOptions-simple.plist
+                  printf '%s\n' '</plist>' >> exportOptions-simple.plist
                   
                   # Export the archive to IPA
                   xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-simple.plist || echo "Export failed, but continuing"
