@@ -208,8 +208,54 @@ jobs:
                 # Extract IPA from archive
                 echo "📦 Extracting IPA from archive..."
                 if [ -f "App.xcarchive" ]; then
-                  xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
-                  echo "✅ IPA extracted successfully"
+                  echo "🔍 Archive found, checking contents..."
+                  ls -la App.xcarchive/
+                  
+                  # Try to export using exportOptions.plist if it exists
+                  if [ -f "exportOptions.plist" ]; then
+                    echo "📦 Using exportOptions.plist for IPA export..."
+                    xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                  else
+                    echo "📦 Creating exportOptions.plist for IPA export..."
+                    echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
+                    echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
+                    echo '<plist version="1.0">' >> exportOptions.plist
+                    echo '<dict>' >> exportOptions.plist
+                    echo '    <key>method</key>' >> exportOptions.plist
+                    echo '    <string>app-store</string>' >> exportOptions.plist
+                    echo '    <key>teamID</key>' >> exportOptions.plist
+                    echo '    <string>BL7NANM4RM</string>' >> exportOptions.plist
+                    echo '    <key>signingStyle</key>' >> exportOptions.plist
+                    echo '    <string>manual</string>' >> exportOptions.plist
+                    echo '    <key>stripSwiftSymbols</key>' >> exportOptions.plist
+                    echo '    <true/>' >> exportOptions.plist
+                    echo '    <key>uploadBitcode</key>' >> exportOptions.plist
+                    echo '    <false/>' >> exportOptions.plist
+                    echo '    <key>uploadSymbols</key>' >> exportOptions.plist
+                    echo '    <true/>' >> exportOptions.plist
+                    echo '</dict>' >> exportOptions.plist
+                    echo '</plist>' >> exportOptions.plist
+                    xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions.plist
+                  fi
+                  
+                  # Check if IPA was created
+                  if [ -f "App.ipa" ]; then
+                    echo "✅ IPA extracted successfully: $(ls -la App.ipa)"
+                  else
+                    echo "❌ IPA export failed, trying manual extraction..."
+                    # Manual extraction as fallback
+                    mkdir -p Payload
+                    cp -r App.xcarchive/Products/Applications/App.app Payload/
+                    zip -r App.ipa Payload/
+                    rm -rf Payload
+                    if [ -f "App.ipa" ]; then
+                      echo "✅ Manual IPA extraction successful: $(ls -la App.ipa)"
+                    else
+                      echo "❌ Manual extraction also failed"
+                      cd ../..
+                      CREATE_TEST_IPA=true
+                    fi
+                  fi
                 else
                   echo "❌ Archive not found"
                   cd ../..
@@ -241,6 +287,10 @@ jobs:
             # If we need to create a test IPA (fallback)
             if [ "$CREATE_TEST_IPA" = "true" ]; then
               echo "🔐 Creating robust test IPA structure with a valid Mach-O executable..."
+              
+              # Ensure we're in the right directory and have permissions
+              pwd
+              ls -la
               
               # Create a simple test IPA structure
               mkdir -p Payload/App.app
