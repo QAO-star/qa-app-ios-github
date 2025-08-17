@@ -285,30 +285,16 @@ jobs:
             echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
             echo '  lane :upload do' >> fastlane/Fastfile
             echo '    begin' >> fastlane/Fastfile
-            echo '      # Try API key from file first, then fallback to environment variable' >> fastlane/Fastfile
-            echo '      UI.message("🔐 Attempting API key authentication...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Trying API key from file...")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ API key from file successful")' >> fastlane/Fastfile
-            echo '      rescue => e' >> fastlane/Fastfile
-            echo '        UI.message("⚠️ File approach failed: #{e.message}")' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Trying API key from environment variable...")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_content: ENV["APP_STORE_CONNECT_API_KEY"],' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ API key from environment variable successful")' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
+            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
+            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
+            echo '        key_id: "ZA7M4DJPV8",' >> fastlane/Fastfile
+            echo '        issuer_id: "6751101564",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        duration: 1200,' >> fastlane/Fastfile
+            echo '        in_house: false' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
+            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
@@ -595,30 +581,16 @@ jobs:
             echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
             echo '  lane :upload do' >> fastlane/Fastfile
             echo '    begin' >> fastlane/Fastfile
-            echo '      # Try API key from file first, then fallback to environment variable' >> fastlane/Fastfile
-            echo '      UI.message("🔐 Attempting API key authentication...")' >> fastlane/Fastfile
-            echo '      begin' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Trying API key from file...")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ API key from file successful")' >> fastlane/Fastfile
-            echo '      rescue => e' >> fastlane/Fastfile
-            echo '        UI.message("⚠️ File approach failed: #{e.message}")' >> fastlane/Fastfile
-            echo '        UI.message("🔐 Trying API key from environment variable...")' >> fastlane/Fastfile
-            echo '        api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '          key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' >> fastlane/Fastfile
-            echo '          issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' >> fastlane/Fastfile
-            echo '          key_content: ENV["APP_STORE_CONNECT_API_KEY"],' >> fastlane/Fastfile
-            echo '          duration: 1200,' >> fastlane/Fastfile
-            echo '          in_house: false' >> fastlane/Fastfile
-            echo '        )' >> fastlane/Fastfile
-            echo '        UI.message("✅ API key from environment variable successful")' >> fastlane/Fastfile
-            echo '      end' >> fastlane/Fastfile
+            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
+            echo '      UI.message("🔐 Using API key file with known values...")' >> fastlane/Fastfile
+            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
+            echo '        key_id: "ZA7M4DJPV8",' >> fastlane/Fastfile
+            echo '        issuer_id: "6751101564",' >> fastlane/Fastfile
+            echo '        key_filepath: "AuthKey_ZA7M4DJPV8.p8",' >> fastlane/Fastfile
+            echo '        duration: 1200,' >> fastlane/Fastfile
+            echo '        in_house: false' >> fastlane/Fastfile
+            echo '      )' >> fastlane/Fastfile
+            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
             echo '' >> fastlane/Fastfile
             echo '      # Upload to TestFlight with API key object' >> fastlane/Fastfile
             echo '      pilot(' >> fastlane/Fastfile
