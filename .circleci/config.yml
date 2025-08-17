@@ -126,16 +126,14 @@ jobs:
             
             # Install the private key first
             if [ -f "ios_distribution.key" ]; then
-              echo "🔐 Installing private key..."
-              security import ios_distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Private key installed"
+              echo "🔐 Installing private key (skip if already exists)..."
+              security import ios_distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign 2>/dev/null && echo "✅ Private key installed" || echo "ℹ️ Private key already exists or import failed"
             fi
             
-            # Install the certificate
+            # Install the certificate (skip if already imported)
             if [ -f "ios_distribution.cer" ]; then
-              echo "🔐 Installing certificate..."
-              security import ios_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Certificate installed"
+              echo "🔐 Installing certificate (skip if already exists)..."
+              security import ios_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign 2>/dev/null && echo "✅ Certificate installed" || echo "ℹ️ Certificate already exists or import failed"
             fi
             
             # Automatically create proper App Store distribution certificate
