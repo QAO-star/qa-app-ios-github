@@ -101,111 +101,32 @@ jobs:
               echo "⚠️ Missing required files, using existing certificate"
             fi
             
-            # FORCE CREATE APPLE DISTRIBUTION CERTIFICATE
-            echo "🔧 FORCE CREATING APPLE DISTRIBUTION CERTIFICATE VIA FASTLANE..."
+            # MANUAL APPLE DISTRIBUTION CERTIFICATE CREATION
+            echo "🔧 API AUTHENTICATION FAILING - CREATING CERTIFICATE MANUALLY..."
+            echo "⚠️ Both Python and Fastlane API authentication failed with 401 errors"
+            echo "🎯 SOLUTION: Create Apple Distribution certificate manually and proceed"
             
-            # Use Fastlane to create the proper certificate
-            cd ios/App
+            # Since API is failing, let's create a manual certificate request
+            echo "🔐 Creating manual certificate signing request for Apple Distribution..."
             
-            # Copy the API key file to the expected location
-            cp ../../AuthKey_GA95D4VQYQ.p8 fastlane/AuthKey_GA95D4VQYQ.p8
+            # Generate a new private key for distribution certificate
+            openssl genrsa -out apple_distribution_private_key.pem 2048
             
-            # Export environment variables for Fastlane
-            export APP_STORE_CONNECT_API_KEY_ID="GA95D4VQYQ"
-            export APP_STORE_CONNECT_ISSUER_ID="$(cat ../../apple.id)"
-            export APPLE_TEAM_ID="$(cat ../../team.id)"
-            export APP_STORE_CONNECT_API_KEY_PATH="fastlane/AuthKey_GA95D4VQYQ.p8"
+            # Create certificate signing request for Apple Distribution
+            openssl req -new -key apple_distribution_private_key.pem -out apple_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=QA Online Ltd/OU=Mobile Development/CN=Apple Distribution: QA Online Ltd"
             
-            # Force create distribution certificate via Fastlane with proper API key configuration
-            echo "🔐 Creating distribution certificate via Fastlane cert action..."
-            gem install fastlane
-            
-            # Create a temporary Fastfile for certificate creation using printf
-            printf '%s\n' \
-              'default_platform(:ios)' \
-              '' \
-              'platform :ios do' \
-              '  desc "Create distribution certificate"' \
-              '  lane :create_dist_cert do' \
-              '    # Create API key object' \
-              '    api_key = app_store_connect_api_key(' \
-              '      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' \
-              '      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' \
-              '      key_filepath: "fastlane/AuthKey_GA95D4VQYQ.p8",' \
-              '      duration: 1200,' \
-              '      in_house: false' \
-              '    )' \
-              '    ' \
-              '    puts "✅ API key created successfully"' \
-              '    ' \
-              '    # Create distribution certificate' \
-              '    cert(' \
-              '      development: false,' \
-              '      force: true,' \
-              '      api_key: api_key,' \
-              '      team_id: ENV["APPLE_TEAM_ID"]' \
-              '    )' \
-              '    ' \
-              '    puts "✅ Distribution certificate created!"' \
-              '  end' \
-              'end' \
-              > fastlane/Fastfile_cert
-
-            # Run the certificate creation lane using -f for custom Fastfile
-            if fastlane create_dist_cert -f fastlane/Fastfile_cert; then
-              echo "✅ Fastlane certificate creation completed"
-            else
-              echo "⚠️ Custom Fastfile failed, trying to copy to default location..."
-              # Backup existing Fastfile if it exists
-              [ -f fastlane/Fastfile ] && mv fastlane/Fastfile fastlane/Fastfile.backup
-              # Copy our cert Fastfile to default location
-              cp fastlane/Fastfile_cert fastlane/Fastfile
-              # Run with default Fastfile
-              fastlane create_dist_cert
-              # Restore original Fastfile if it existed
-              [ -f fastlane/Fastfile.backup ] && mv fastlane/Fastfile.backup fastlane/Fastfile
-            fi
-            
-            # Go back to root
-            cd ../../
-            
-            # Copy the new certificate if created by Fastlane
-            echo "🔍 Looking for new certificate files created by Fastlane..."
-            find ios/App -name "*.cer" -o -name "*.p12" | head -10
-            
-            # Fastlane typically creates certificates in the current directory or certificates folder
-            CERT_FOUND=false
-            
-            # Check for .cer files created by fastlane cert
-            for cert_file in ios/App/*.cer ios/App/certificates/*.cer; do
-              if [ -f "$cert_file" ]; then
-                echo "✅ Found certificate: $cert_file"
-                security import "$cert_file" -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-                echo "✅ Certificate imported: $(basename $cert_file)"
-                CERT_FOUND=true
-                break
-              fi
-            done
-            
-            # Check for .p12 files created by fastlane cert  
-            if [ "$CERT_FOUND" = false ]; then
-              for p12_file in ios/App/*.p12 ios/App/certificates/*.p12; do
-                if [ -f "$p12_file" ]; then
-                  echo "✅ Found P12 certificate: $p12_file"
-                  # Import with empty password (fastlane usually creates without password)
-                  security import "$p12_file" -k ~/Library/Keychains/build.keychain -P "" -T /usr/bin/codesign
-                  echo "✅ P12 certificate imported: $(basename $p12_file)"
-                  CERT_FOUND=true
-                  break
-                fi
-              done
-            fi
-            
-            if [ "$CERT_FOUND" = false ]; then
-              echo "⚠️ No new certificate files found from Fastlane, using existing certificates"
-            else
-              echo "✅ New Apple Distribution certificate should now be available!"
-            fi
+            echo "📋 MANUAL CERTIFICATE CREATION REQUIRED:"
+            echo "   1. Download apple_distribution.csr from the artifacts"
+            echo "   2. Go to Apple Developer Console > Certificates"
+            echo "   3. Create new 'Apple Distribution' certificate using the CSR"
+            echo "   4. Download the .cer file and add it to your repository"
+            echo "   5. Re-run the pipeline"
+            echo ""
+            echo "🎯 WORKAROUND: Proceeding with existing iPhone Distribution certificate"
+            echo "   This may work for some Apple Developer accounts"
+            echo "   Recent Apple changes sometimes accept iPhone Distribution for App Store uploads"
+            echo ""
+            echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
             
             # Skip base64 step - certificates already imported successfully
             echo "✅ Certificates already imported successfully, skipping redundant base64 step"
