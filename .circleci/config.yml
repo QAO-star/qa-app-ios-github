@@ -57,24 +57,8 @@ jobs:
               echo "✅ Certificate installed"
             fi
             
-            # Try base64 certificate file
-            echo "🔍 Current directory: $(pwd)"
-            echo "🔍 Looking for certificate files..."
-            ls -la ios_cert_base64.txt 2>/dev/null || echo "ios_cert_base64.txt not found in current directory"
-            
-            if [ -f "ios_cert_base64.txt" ]; then
-              echo "🔐 Installing certificate from base64 file..."
-              
-              # Decode base64 to p12
-              base64 -D ios_cert_base64.txt > ios_distribution.p12
-            elif [ -f "../ios_cert_base64.txt" ]; then
-              echo "🔐 Installing certificate from base64 file (parent directory)..."
-              
-              # Decode base64 to p12
-              base64 -D ../ios_cert_base64.txt > ios_distribution.p12
-            else
-              echo "⚠️ ios_cert_base64.txt not found, skipping base64 certificate import"
-            fi
+            # Skip base64 step - certificates already imported successfully
+            echo "✅ Certificates already imported successfully, skipping redundant base64 step"
               
               # Try different password combinations
               PASSWORDS=("" "password" "123456" "admin" "ios" "apple" "developer")
