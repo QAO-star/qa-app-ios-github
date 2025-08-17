@@ -62,7 +62,7 @@ jobs:
               echo "🔐 Installing certificate from base64 file..."
               
               # Decode base64 to p12
-              base64 --decode ios_cert_base64.txt > ios_distribution.p12
+              base64 -D ios_cert_base64.txt > ios_distribution.p12
               
               # Try different password combinations
               PASSWORDS=("" "password" "123456" "admin" "ios" "apple" "developer")
