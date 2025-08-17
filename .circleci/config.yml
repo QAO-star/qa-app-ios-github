@@ -107,35 +107,92 @@ jobs:
             # Use Fastlane to create the proper certificate
             cd ios/App
             
-            # Create API key file for Fastlane
-            echo "-----BEGIN PRIVATE KEY-----" > fastlane/AuthKey_GA95D4VQYQ.p8
-            cat ../../AuthKey_GA95D4VQYQ.p8 | grep -v "BEGIN\|END" >> fastlane/AuthKey_GA95D4VQYQ.p8
-            echo "-----END PRIVATE KEY-----" >> fastlane/AuthKey_GA95D4VQYQ.p8
+            # Copy the API key file to the expected location
+            cp ../../AuthKey_GA95D4VQYQ.p8 fastlane/AuthKey_GA95D4VQYQ.p8
             
             # Export environment variables for Fastlane
             export APP_STORE_CONNECT_API_KEY_ID="GA95D4VQYQ"
             export APP_STORE_CONNECT_ISSUER_ID="$(cat ../../apple.id)"
             export APPLE_TEAM_ID="$(cat ../../team.id)"
+            export APP_STORE_CONNECT_API_KEY_PATH="fastlane/AuthKey_GA95D4VQYQ.p8"
             
-            # Force create distribution certificate via Fastlane
+            # Force create distribution certificate via Fastlane with proper API key configuration
             echo "🔐 Creating distribution certificate via Fastlane cert action..."
             gem install fastlane
-            fastlane cert --development false --force
+            
+            # Create a temporary Fastfile for certificate creation using printf
+            printf '%s\n' \
+              'default_platform(:ios)' \
+              '' \
+              'platform :ios do' \
+              '  desc "Create distribution certificate"' \
+              '  lane :create_dist_cert do' \
+              '    # Create API key object' \
+              '    api_key = app_store_connect_api_key(' \
+              '      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],' \
+              '      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],' \
+              '      key_filepath: "fastlane/AuthKey_GA95D4VQYQ.p8",' \
+              '      duration: 1200,' \
+              '      in_house: false' \
+              '    )' \
+              '    ' \
+              '    puts "✅ API key created successfully"' \
+              '    ' \
+              '    # Create distribution certificate' \
+              '    cert(' \
+              '      development: false,' \
+              '      force: true,' \
+              '      api_key: api_key,' \
+              '      team_id: ENV["APPLE_TEAM_ID"]' \
+              '    )' \
+              '    ' \
+              '    puts "✅ Distribution certificate created!"' \
+              '  end' \
+              'end' \
+              > fastlane/Fastfile_cert
+
+            # Run the certificate creation lane
+            fastlane --fastfile fastlane/Fastfile_cert create_dist_cert
             
             # Go back to root
             cd ../../
             
-            # Copy the new certificate if created
-            if [ -f "ios/App/dist_cert.cer" ]; then
-              echo "✅ Found new distribution certificate, installing..."
-              security import ios/App/dist_cert.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Apple Distribution certificate installed!"
-            elif [ -f "ios/App/certificates/distribution.cer" ]; then
-              echo "✅ Found distribution certificate in certificates folder, installing..."
-              security import ios/App/certificates/distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-              echo "✅ Apple Distribution certificate installed!"
+            # Copy the new certificate if created by Fastlane
+            echo "🔍 Looking for new certificate files created by Fastlane..."
+            find ios/App -name "*.cer" -o -name "*.p12" | head -10
+            
+            # Fastlane typically creates certificates in the current directory or certificates folder
+            CERT_FOUND=false
+            
+            # Check for .cer files created by fastlane cert
+            for cert_file in ios/App/*.cer ios/App/certificates/*.cer; do
+              if [ -f "$cert_file" ]; then
+                echo "✅ Found certificate: $cert_file"
+                security import "$cert_file" -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
+                echo "✅ Certificate imported: $(basename $cert_file)"
+                CERT_FOUND=true
+                break
+              fi
+            done
+            
+            # Check for .p12 files created by fastlane cert  
+            if [ "$CERT_FOUND" = false ]; then
+              for p12_file in ios/App/*.p12 ios/App/certificates/*.p12; do
+                if [ -f "$p12_file" ]; then
+                  echo "✅ Found P12 certificate: $p12_file"
+                  # Import with empty password (fastlane usually creates without password)
+                  security import "$p12_file" -k ~/Library/Keychains/build.keychain -P "" -T /usr/bin/codesign
+                  echo "✅ P12 certificate imported: $(basename $p12_file)"
+                  CERT_FOUND=true
+                  break
+                fi
+              done
+            fi
+            
+            if [ "$CERT_FOUND" = false ]; then
+              echo "⚠️ No new certificate files found from Fastlane, using existing certificates"
             else
-              echo "⚠️ Fastlane certificate creation also failed"
+              echo "✅ New Apple Distribution certificate should now be available!"
             fi
             
             # Skip base64 step - certificates already imported successfully
