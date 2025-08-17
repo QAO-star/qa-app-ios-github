@@ -96,7 +96,14 @@ jobs:
               echo "📱 Found existing iOS app, setting up schemes..."
               cd ios/App
               
-              # First, let's check if we need to install pods
+              # First, ensure Capacitor dependencies are installed
+              echo "📦 Installing Capacitor dependencies..."
+              cd ../..
+              npm install @capacitor/ios @capacitor/core
+              npx cap sync ios
+              cd ios/App
+              
+              # Now install CocoaPods dependencies
               if [ ! -d "Pods" ]; then
                 echo "📦 Installing CocoaPods dependencies..."
                 pod install
@@ -231,9 +238,9 @@ jobs:
               CREATE_TEST_IPA=true
             fi
             
-            # If we need to create a test IPA
+            # If we need to create a test IPA (fallback)
             if [ "$CREATE_TEST_IPA" = "true" ]; then
-              echo "🔐 Creating test IPA structure..."
+              echo "🔐 Creating robust test IPA structure with a valid Mach-O executable..."
               
               # Create a simple test IPA structure
               mkdir -p Payload/App.app
