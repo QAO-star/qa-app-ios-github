@@ -135,6 +135,9 @@ jobs:
                 elif [ -f "distribution.key" ]; then
                   echo "🔐 Found distribution.key, importing..."
                   security import distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ distribution.key imported" || echo "⚠️ distribution.key import failed"
+                elif [ -f "distribution.csr" ]; then
+                  echo "⚠️ Found distribution.csr but no matching private key"
+                  echo "📋 Need distribution.key file that was used to create distribution.csr"
                 elif [ -f "apple_distribution_private_key.pem" ]; then
                   echo "🔐 Found apple_distribution_private_key.pem, importing..."
                   security import apple_distribution_private_key.pem -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ apple_distribution_private_key.pem imported" || echo "⚠️ apple_distribution_private_key.pem import failed"
