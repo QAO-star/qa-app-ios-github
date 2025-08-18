@@ -138,24 +138,20 @@ jobs:
             
             echo "✅ Valid app structure found"
             
-                        # Use the existing signed IPA - it's already properly structured and signed
-            echo "📦 Using existing signed IPA for App Store Connect upload..."
-            echo "✅ The signed-ipa.zip contains a properly structured app with:"
-            echo "   - _CodeSignature directory (code signature)"
-            echo "   - embedded.mobileprovision (provisioning profile)"
-            echo "   - Proper app bundle structure"
+                        # Use the existing working upload script that properly handles signing
+            echo "📦 Using the existing upload-to-appstore.sh script..."
+            echo "✅ This script properly handles:"
+            echo "   - Certificate installation and validation"
+            echo "   - Framework signing (CRITICAL for App Store Connect)"
+            echo "   - Proper app bundle signing"
+            echo "   - Upload to App Store Connect"
             
-            # Fix the version string to comply with Apple's requirements
-            echo "🔧 Fixing version string format..."
-            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.72" Payload/App.app/Info.plist
-            echo "✅ Version string fixed to: 1.0.72"
+            # Run the working script
+            chmod +x upload-to-appstore.sh
+            ./upload-to-appstore.sh
             
-            # Create a new IPA from the existing signed app bundle
-            echo "📦 Creating IPA from existing signed app bundle..."
-            # Create the IPA with proper structure: App.ipa should contain Payload/App.app
-            zip -r App.ipa Payload/
-            
-            echo "✅ Successfully created IPA from existing signed app bundle"
+            # The script will handle everything and exit with proper status
+            exit $?
             
             # Verify the IPA structure
             echo "🔍 Verifying IPA structure..."
