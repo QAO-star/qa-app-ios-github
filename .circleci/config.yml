@@ -149,15 +149,13 @@ jobs:
                 echo "🚀 Attempting upload with Fastlane (API key object)..."
                 
                 # Create API key object for Fastlane
-                cat > api_key.json << EOF
-{
-  "key_id": "$API_KEY_ID",
-  "issuer_id": "6751101564",
-  "key": "$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')",
-  "duration": 1200,
-  "in_house": false
-}
-EOF
+                echo '{' > api_key.json
+                echo "  \"key_id\": \"$API_KEY_ID\"," >> api_key.json
+                echo "  \"issuer_id\": \"6751101564\"," >> api_key.json
+                echo "  \"key\": \"$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')\"," >> api_key.json
+                echo "  \"duration\": 1200," >> api_key.json
+                echo "  \"in_house\": false" >> api_key.json
+                echo '}' >> api_key.json
                 
                 if fastlane run upload_to_app_store \
                   ipa:"App.ipa" \
