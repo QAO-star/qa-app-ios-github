@@ -776,214 +776,216 @@ jobs:
             
             echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
               
-              if [ "$REAL_IPA_CREATED" = "true" ]; then
-                echo "✅ Using existing signed IPA - skipping build process"
-              elif [ $BUILD_EXIT_CODE -eq 0 ]; then
-                echo "✅ Archive created successfully for real iOS app"
+            if [ "$REAL_IPA_CREATED" = "true" ]; then
+              echo "✅ Using existing signed IPA - skipping build process"
+            else
+              if [ $BUILD_EXIT_CODE -eq 0 ]; then
+              echo "✅ Archive created successfully for real iOS app"
+              
+              # Extract IPA from archive
+              echo "📦 Extracting IPA from real iOS app archive..."
+              echo "🔍 Current directory: $(pwd)"
+              echo "🔍 Archive location: $(ls -la App.xcarchive 2>/dev/null || echo 'Archive not found in current directory')"
+              
+              if [ -d "App.xcarchive" ]; then
+                echo "✅ Archive found! Contents:"
+                ls -la App.xcarchive/
                 
-                # Extract IPA from archive
-                echo "📦 Extracting IPA from real iOS app archive..."
-                echo "🔍 Current directory: $(pwd)"
-                echo "🔍 Archive location: $(ls -la App.xcarchive 2>/dev/null || echo 'Archive not found in current directory')"
+                # Create export options for automatic signing
+                echo "📦 Creating export options for real iOS app with automatic signing..."
+                printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-real.plist
+                printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-real.plist
+                printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
+                printf '%s\n' '<dict>' >> exportOptions-real.plist
+                printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
+                printf '%s\n' '    <string>app-store</string>' >> exportOptions-real.plist
+                printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
+                printf '%s\n' '    <string>automatic</string>' >> exportOptions-real.plist
+                printf '%s\n' '    <key>teamID</key>' >> exportOptions-real.plist
+                printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-real.plist
+                printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
+                printf '%s\n' '    <false/>' >> exportOptions-real.plist
+                printf '%s\n' '</dict>' >> exportOptions-real.plist
+                printf '%s\n' '</plist>' >> exportOptions-real.plist
                 
-                if [ -d "App.xcarchive" ]; then
-                  echo "✅ Archive found! Contents:"
-                  ls -la App.xcarchive/
-                  
-                  # Create export options for automatic signing
-                  echo "📦 Creating export options for real iOS app with automatic signing..."
-                  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-real.plist
-                  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-real.plist
-                  printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
-                  printf '%s\n' '<dict>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>app-store</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>automatic</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>teamID</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <false/>' >> exportOptions-real.plist
-                  printf '%s\n' '</dict>' >> exportOptions-real.plist
-                  printf '%s\n' '</plist>' >> exportOptions-real.plist
-                  
-                  echo "📦 Exporting real iOS app to IPA..."
-                  set +e  # Don't exit on export failure
-                  EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-real.plist 2>&1)
-                    EXPORT_EXIT_CODE=$?
-                  set -e  # Re-enable exit on error
-                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
-                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
-                      echo "❌ Export failed with output:"
-                      echo "$EXPORT_OUTPUT"
-                      echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
+                echo "📦 Exporting real iOS app to IPA..."
+                set +e  # Don't exit on export failure
+                EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-real.plist 2>&1)
+                  EXPORT_EXIT_CODE=$?
+                set -e  # Re-enable exit on error
+                  echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
+                  if [ $EXPORT_EXIT_CODE -ne 0 ]; then
+                    echo "❌ Export failed with output:"
+                    echo "$EXPORT_OUTPUT"
+                    echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
+                    
+                    # Extract the App.app directly from the archive
+                    echo "🔍 Looking for App.app in archive..."
+                    find App.xcarchive -name "*.app" -type d || echo "No .app found in archive"
+                    
+                    APP_PATH=$(find App.xcarchive -name "App.app" -type d | head -1)
+                    if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+                      echo "✅ Found app at: $APP_PATH"
+                      echo "🔧 Creating IPA manually from archive..."
                       
-                      # Extract the App.app directly from the archive
-                      echo "🔍 Looking for App.app in archive..."
-                      find App.xcarchive -name "*.app" -type d || echo "No .app found in archive"
+                      # Clean any existing Payload
+                      rm -rf Payload/
+                      mkdir -p Payload
                       
-                      APP_PATH=$(find App.xcarchive -name "App.app" -type d | head -1)
-                      if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
-                        echo "✅ Found app at: $APP_PATH"
-                        echo "🔧 Creating IPA manually from archive..."
-                        
-                        # Clean any existing Payload
-                        rm -rf Payload/
-                        mkdir -p Payload
-                        
-                        # Copy the app
-                        cp -R "$APP_PATH" Payload/
-                        echo "✅ Copied app to Payload directory"
-                        
-                        # List contents to verify
-                        echo "🔍 Payload contents:"
-                        ls -la Payload/
-                        ls -la Payload/App.app/ | head -10
-                        
-                        # Create IPA
-                        zip -r App.ipa Payload/
-                        echo "✅ Created IPA manually from archive contents"
-                        
-                        if [ -f "App.ipa" ]; then
-                          echo "✅ IPA file created successfully: $(ls -la App.ipa)"
-                        else
-                          echo "❌ Failed to create IPA file"
-                        fi
+                      # Copy the app
+                      cp -R "$APP_PATH" Payload/
+                      echo "✅ Copied app to Payload directory"
+                      
+                      # List contents to verify
+                      echo "🔍 Payload contents:"
+                      ls -la Payload/
+                      ls -la Payload/App.app/ | head -10
+                      
+                      # Create IPA
+                      zip -r App.ipa Payload/
+                      echo "✅ Created IPA manually from archive contents"
+                      
+                      if [ -f "App.ipa" ]; then
+                        echo "✅ IPA file created successfully: $(ls -la App.ipa)"
                       else
-                        echo "❌ Could not find App.app in archive"
-                        echo "🔍 Complete archive structure:"
-                        find App.xcarchive -type f | head -20
-                      fi
-                    fi
-                    
-                    echo "🔨 Skipping problematic xcodebuild export, using direct manual extraction..."
-                    echo "📦 Extracting App.app directly from archive..."
-                    
-                    # Manual extraction - more reliable than xcodebuild export
-                    echo "📦 Creating Payload directory and copying app..."
-                    mkdir -p Payload
-                    cp -r App.xcarchive/Products/Applications/App.app Payload/
-                    
-                    echo "🔐 Embedding provisioning profile in real iOS app..."
-                    # Go back to project root to find provisioning profile
-                    echo "🔍 Current directory before navigation: $(pwd)"
-                    cd ../..
-                    echo "🔍 Now in directory: $(pwd)"
-                    echo "🔍 Looking for provisioning profile files..."
-                    ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found in $(pwd)"
-                    
-                    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                      echo "✅ Found provisioning profile, embedding it..."
-                      cp QAOnlineAppStoreProfile.mobileprovision ios/App/Payload/App.app/embedded.mobileprovision
-                      echo "✅ Provisioning profile embedded successfully"
-                      echo "🔍 Verifying embedded profile: $(ls -la ios/App/Payload/App.app/embedded.mobileprovision)"
-                    else
-                      echo "❌ Provisioning profile not found in project root!"
-                      echo "🔍 Contents of current directory:"
-                      ls -la
-                    fi
-                    
-                    # Go back to ios/App directory
-                    echo "🔄 Returning to ios/App directory..."
-                    cd ios/App
-                    echo "🔍 Back in directory: $(pwd)"
-                    
-                    echo "🔐 Code signing the real iOS app with embedded provisioning profile..."
-                    
-                    # Get the signing identity from the previous step
-                    SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
-                    
-                    if [ -n "$SIGNING_IDENTITY" ]; then
-                      echo "🔐 Using signing identity: $SIGNING_IDENTITY"
-                      
-                      # Try to sign with timeout to avoid hanging
-                      echo "🔐 Attempting to sign main application bundle..."
-                      
-                      # Use timeout to prevent hanging (30 seconds) - install coreutils for timeout
-                      brew install coreutils 2>/dev/null || echo "coreutils already installed"
-                      if gtimeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
-                        echo "✅ Main app signed successfully"
-                      else
-                        echo "❌ Code signing failed or timed out, continuing with unsigned IPA"
-                        echo "⚠️ IPA will be unsigned but should still be valid for upload"
+                        echo "❌ Failed to create IPA file"
                       fi
                     else
-                      echo "❌ No signing identity found, skipping code signing"
-                      echo "⚠️ IPA will be unsigned"
-                    fi
-                    
-                    # Verify main app signature only
-                    echo "🔍 Verifying main app signature..."
-                    codesign --verify --verbose Payload/App.app || echo "❌ Main app signature verification failed"
-                    
-                    echo "📦 Creating final signed IPA with embedded provisioning profile..."
-                    zip -r App.ipa Payload/
-                    rm -rf Payload
-                    
-                    if [ -f "App.ipa" ]; then
-                      echo "✅ Real iOS app manual IPA extraction successful: $(ls -la App.ipa)"
-                      # Copy IPA to project root
-                      cp App.ipa ../../App.ipa
-                      echo "✅ Real iOS app IPA copied to project root"
-                      REAL_IPA_CREATED=true
-                    else
-                      echo "❌ Real iOS app manual extraction failed"
-                      REAL_IPA_CREATED=false
+                      echo "❌ Could not find App.app in archive"
+                      echo "🔍 Complete archive structure:"
+                      find App.xcarchive -type f | head -20
                     fi
                   fi
                   
-                  # Check if IPA was created (look for any .ipa file)
-                  echo "🔍 Looking for created IPA files..."
-                  ls -la *.ipa 2>/dev/null || echo "No IPA files found yet"
+                  echo "🔨 Skipping problematic xcodebuild export, using direct manual extraction..."
+                  echo "📦 Extracting App.app directly from archive..."
                   
-                  IPA_FILE=$(find . -name "*.ipa" -type f | head -1)
-                  if [ -n "$IPA_FILE" ]; then
-                    echo "✅ Found exported IPA: $IPA_FILE"
-                    # Move it to standard name if needed
-                    if [ "$IPA_FILE" != "./App.ipa" ]; then
-                      mv "$IPA_FILE" App.ipa
-                      echo "📱 Renamed IPA to App.ipa"
+                  # Manual extraction - more reliable than xcodebuild export
+                  echo "📦 Creating Payload directory and copying app..."
+                  mkdir -p Payload
+                  cp -r App.xcarchive/Products/Applications/App.app Payload/
+                  
+                  echo "🔐 Embedding provisioning profile in real iOS app..."
+                  # Go back to project root to find provisioning profile
+                  echo "🔍 Current directory before navigation: $(pwd)"
+                  cd ../..
+                  echo "🔍 Now in directory: $(pwd)"
+                  echo "🔍 Looking for provisioning profile files..."
+                  ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found in $(pwd)"
+                  
+                  if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                    echo "✅ Found provisioning profile, embedding it..."
+                    cp QAOnlineAppStoreProfile.mobileprovision ios/App/Payload/App.app/embedded.mobileprovision
+                    echo "✅ Provisioning profile embedded successfully"
+                    echo "🔍 Verifying embedded profile: $(ls -la ios/App/Payload/App.app/embedded.mobileprovision)"
+                  else
+                    echo "❌ Provisioning profile not found in project root!"
+                    echo "🔍 Contents of current directory:"
+                    ls -la
+                  fi
+                  
+                  # Go back to ios/App directory
+                  echo "🔄 Returning to ios/App directory..."
+                  cd ios/App
+                  echo "🔍 Back in directory: $(pwd)"
+                  
+                  echo "🔐 Code signing the real iOS app with embedded provisioning profile..."
+                  
+                  # Get the signing identity from the previous step
+                  SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
+                  
+                  if [ -n "$SIGNING_IDENTITY" ]; then
+                    echo "🔐 Using signing identity: $SIGNING_IDENTITY"
+                    
+                    # Try to sign with timeout to avoid hanging
+                    echo "🔐 Attempting to sign main application bundle..."
+                    
+                    # Use timeout to prevent hanging (30 seconds) - install coreutils for timeout
+                    brew install coreutils 2>/dev/null || echo "coreutils already installed"
+                    if gtimeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
+                      echo "✅ Main app signed successfully"
+                    else
+                      echo "❌ Code signing failed or timed out, continuing with unsigned IPA"
+                      echo "⚠️ IPA will be unsigned but should still be valid for upload"
                     fi
-                    echo "✅ Real iOS app IPA extracted successfully: $(ls -la App.ipa)"
+                  else
+                    echo "❌ No signing identity found, skipping code signing"
+                    echo "⚠️ IPA will be unsigned"
+                  fi
+                  
+                  # Verify main app signature only
+                  echo "🔍 Verifying main app signature..."
+                  codesign --verify --verbose Payload/App.app || echo "❌ Main app signature verification failed"
+                  
+                  echo "📦 Creating final signed IPA with embedded provisioning profile..."
+                  zip -r App.ipa Payload/
+                  rm -rf Payload
+                  
+                  if [ -f "App.ipa" ]; then
+                    echo "✅ Real iOS app manual IPA extraction successful: $(ls -la App.ipa)"
                     # Copy IPA to project root
                     cp App.ipa ../../App.ipa
                     echo "✅ Real iOS app IPA copied to project root"
                     REAL_IPA_CREATED=true
                   else
-                    echo "❌ Real iOS app IPA not found after manual extraction"
+                    echo "❌ Real iOS app manual extraction failed"
                     REAL_IPA_CREATED=false
                   fi
+                fi
+                
+                # Check if IPA was created (look for any .ipa file)
+                echo "🔍 Looking for created IPA files..."
+                ls -la *.ipa 2>/dev/null || echo "No IPA files found yet"
+                
+                IPA_FILE=$(find . -name "*.ipa" -type f | head -1)
+                if [ -n "$IPA_FILE" ]; then
+                  echo "✅ Found exported IPA: $IPA_FILE"
+                  # Move it to standard name if needed
+                  if [ "$IPA_FILE" != "./App.ipa" ]; then
+                    mv "$IPA_FILE" App.ipa
+                    echo "📱 Renamed IPA to App.ipa"
+                  fi
+                  echo "✅ Real iOS app IPA extracted successfully: $(ls -la App.ipa)"
+                  # Copy IPA to project root
+                  cp App.ipa ../../App.ipa
+                  echo "✅ Real iOS app IPA copied to project root"
+                  REAL_IPA_CREATED=true
                 else
-                  echo "❌ Real iOS app archive not found in current directory"
-                  echo "🔍 Looking for archive in parent directories..."
-                  find . -name "App.xcarchive" -type d 2>/dev/null || echo "No archive found"
+                  echo "❌ Real iOS app IPA not found after manual extraction"
                   REAL_IPA_CREATED=false
                 fi
               else
-                if [ "$REAL_IPA_CREATED" = "true" ]; then
-                  echo "✅ Using existing signed IPA - build process not needed"
-                else
-                  echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
-                echo "🔧 STOPPING TEST IPA CREATION - FIXING REAL iOS BUILD INSTEAD"
-                echo "🔍 Checking if we can use existing app structure..."
+                echo "❌ Real iOS app archive not found in current directory"
+                echo "🔍 Looking for archive in parent directories..."
+                find . -name "App.xcarchive" -type d 2>/dev/null || echo "No archive found"
+                REAL_IPA_CREATED=false
+              fi
+            fi  # Close the if [ $BUILD_EXIT_CODE -eq 0 ] block
+            else
+              if [ "$REAL_IPA_CREATED" = "true" ]; then
+                echo "✅ Using existing signed IPA - build process not needed"
+              else
+                echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
+              echo "🔧 STOPPING TEST IPA CREATION - FIXING REAL iOS BUILD INSTEAD"
+              echo "🔍 Checking if we can use existing app structure..."
+              
+              # Check if there's already a working app structure in the Payload directory
+              echo "🔍 Current directory: $(pwd)"
+              cd ../../..  # Go back to project root to check Payload
+              
+              # Ensure we're in the actual project directory, not user home
+              if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ]; then
+                echo "🔄 Navigating to actual project directory..."
+                cd project
+              fi
+              
+              echo "🔍 Project root directory: $(pwd)"
+              
+              if [ -d "Payload/App.app" ] && [ -f "Payload/App.app/App" ]; then
+                echo "✅ Found existing app structure in Payload directory!"
+                echo "🔄 Using existing app structure instead of building from scratch..."
                 
-                # Check if there's already a working app structure in the Payload directory
-                echo "🔍 Current directory: $(pwd)"
-                cd ../../..  # Go back to project root to check Payload
-                
-                # Ensure we're in the actual project directory, not user home
-                if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ]; then
-                  echo "🔄 Navigating to actual project directory..."
-                  cd project
-                fi
-                
-                echo "🔍 Project root directory: $(pwd)"
-                
-                if [ -d "Payload/App.app" ] && [ -f "Payload/App.app/App" ]; then
-                  echo "✅ Found existing app structure in Payload directory!"
-                  echo "🔄 Using existing app structure instead of building from scratch..."
-                  
-                                  # Check if the existing app is valid but force test IPA creation for now
+                                # Check if the existing app is valid but force test IPA creation for now
                 EXISTING_APP_TYPE=$(file Payload/App.app/App 2>/dev/null || echo "unknown")
                 echo "🔍 Existing app executable type: $EXISTING_APP_TYPE"
                 
