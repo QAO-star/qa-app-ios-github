@@ -117,27 +117,31 @@ jobs:
             mkdir -p ~/.appstoreconnect/private_keys
             cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
             
-            # Try fastlane first with correct API key format
-            echo "🚀 Attempting upload with Fastlane..."
-            if fastlane run upload_to_app_store \
-              ipa:"App.ipa" \
-              api_key:"{\"key_id\":\"$API_KEY_ID\",\"issuer_id\":\"6751101564\",\"key_filepath\":\"AuthKey_${API_KEY_ID}.p8\"}" \
-              skip_waiting_for_build_processing:true \
-              skip_metadata:true \
-              skip_screenshots:true \
-              force:true; then
-              echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
+            # Try altool first (more reliable for API key auth)
+            echo "🚀 Attempting upload with altool..."
+            if xcrun altool --upload-app \
+              --file "$(pwd)/App.ipa" \
+              --type ios \
+              --apiKey "$API_KEY_ID" \
+              --apiIssuer "6751101564" \
+              --verbose; then
+              echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
             else
-              echo "⚠️ Fastlane failed, trying altool..."
-              if xcrun altool --upload-app \
-                --file "App.ipa" \
-                --type ios \
-                --apiKey "$API_KEY_ID" \
-                --apiIssuer "6751101564" \
-                --verbose; then
-                echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
+              echo "⚠️ altool failed, trying Fastlane..."
+              # Try Fastlane with correct parameters
+              echo "🚀 Attempting upload with Fastlane..."
+              if fastlane run upload_to_app_store \
+                ipa:"App.ipa" \
+                api_key_path:"AuthKey_${API_KEY_ID}.p8" \
+                skip_metadata:true \
+                skip_screenshots:true \
+                force:true; then
+                echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
               else
                 echo "❌ Both upload methods failed!"
+                echo "🔍 Checking API key permissions..."
+                echo "📋 Make sure your API key has 'App Manager' or 'Admin' role"
+                echo "📋 And 'Certificates, Identifiers & Profiles' access"
                 exit 1
               fi
             fi
