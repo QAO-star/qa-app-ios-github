@@ -29,8 +29,14 @@ if [ -f "signed-ipa.zip" ]; then
     if [ -f "App.ipa" ]; then
         echo "✅ Found App.ipa"
         IPA_FILE="App.ipa"
+    elif [ -d "Payload" ]; then
+        echo "✅ Found Payload directory in signed-ipa.zip, creating IPA..."
+        # Create IPA from Payload directory
+        zip -r App.ipa Payload/
+        IPA_FILE="App.ipa"
+        echo "✅ Created App.ipa from Payload"
     else
-        echo "❌ App.ipa not found in signed-ipa.zip"
+        echo "❌ Neither App.ipa nor Payload directory found in signed-ipa.zip"
         exit 1
     fi
 elif [ -d "Payload" ]; then
