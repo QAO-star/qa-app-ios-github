@@ -1,101 +1,73 @@
 version: 2.1
 
-orbs:
-  macos: circleci/macos@2
-
 workflows:
   simple_sign_workflow:
     jobs:
-      - upload_to_appstore:
+      - simple_sign_and_upload:
           filters:
             branches:
               only: [main, simple-sign]
 
 jobs:
-  upload_to_appstore:
+  simple_sign_and_upload:
     macos:
-      xcode: 16.0
-    resource_class: macos.m1.large.gen1
+      xcode: "15.3.0"
+    resource_class: macos.x86.medium.gen2
     
     steps:
       - checkout
       
       - run:
-          name: "Setup Environment"
+          name: "Setup Environment and Upload to App Store"
           command: |
             set -e
-            echo "🚀 Starting App Store Connect upload process"
-            echo "🔍 Current directory: $(pwd)"
-            echo "📋 Repository contents:"
-            ls -la
             
-            # Read essential configuration
+            # Read configuration
             APPLE_TEAM_ID=$(cat team.id | tr -d '\n\r' | head -1)
             APPLE_ID=$(cat apple.id | tr -d '\n\r' | head -1)
             API_KEY_ID=$(cat AuthKey_ZA7M4DJPV8.id | tr -d '\n\r' | head -1)
             
-            echo "✅ Configuration loaded:"
+            echo "🚀 Starting App Store Connect upload"
+            echo "📋 Configuration:"
             echo "  Team ID: $APPLE_TEAM_ID"
-            echo "  Apple ID: $APPLE_ID"
+            echo "  Apple ID: $APPLE_ID" 
             echo "  API Key ID: $API_KEY_ID"
             
-            # Export for later steps
-            echo "export APPLE_TEAM_ID='$APPLE_TEAM_ID'" >> $BASH_ENV
-            echo "export APPLE_ID='$APPLE_ID'" >> $BASH_ENV
-            echo "export API_KEY_ID='$API_KEY_ID'" >> $BASH_ENV
-
-      - run:
-          name: "Setup Certificates and Keychain"
-          command: |
-            set -e
-            echo "🔐 Setting up certificates and keychain"
-            
-            # Create keychain
-            security create-keychain -p "" build.keychain || echo "Keychain already exists"
+            # Setup keychain
+            echo "🔐 Setting up keychain..."
+            if ! security list-keychains | grep -q "build.keychain"; then
+              security create-keychain -p "" build.keychain
+            fi
             security list-keychains -s build.keychain
             security default-keychain -s build.keychain
             security unlock-keychain -p "" build.keychain
             security set-keychain-settings build.keychain
             
             # Install certificates
+            echo "🔐 Installing certificates..."
             if [ -f "auto_distribution.cer" ]; then
-              echo "📄 Installing Apple Distribution certificate"
               security import auto_distribution.cer -k build.keychain -T /usr/bin/codesign
             fi
-            
             if [ -f "auto_distribution_private_key.pem" ]; then
-              echo "🔑 Installing private key"
               security import auto_distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
             fi
             
-            # Verify certificates
+            # Verify signing identity
             echo "🔍 Available signing identities:"
             security find-identity -v -p codesigning build.keychain
             
-            echo "✅ Certificate setup complete"
-
-      - run:
-          name: "Prepare IPA from Signed Archive"
-          command: |
-            set -e
-            echo "📦 Preparing IPA from existing signed archive"
-            
-            # Check for signed IPA archive
+            # Extract and prepare IPA
+            echo "📦 Preparing IPA from signed archive..."
             if [ ! -f "signed-ipa.zip" ]; then
               echo "❌ ERROR: signed-ipa.zip not found!"
               exit 1
             fi
             
             echo "✅ Found signed-ipa.zip"
-            echo "📊 Archive size: $(ls -lh signed-ipa.zip | awk '{print $5}')"
-            
-            # Extract the archive
-            echo "📂 Extracting signed archive..."
             unzip -o signed-ipa.zip
             
-            # Verify Payload structure
             if [ ! -d "Payload" ]; then
-              echo "❌ ERROR: No Payload directory found in archive!"
+              echo "❌ ERROR: No Payload directory found!"
               exit 1
             fi
             
@@ -105,75 +77,45 @@ jobs:
             fi
             
             echo "✅ Valid app structure found"
-            echo "📱 App contents:"
-            ls -la Payload/App.app/ | head -10
             
-            # Check if executable exists and is valid
+            # Verify executable
             if [ -f "Payload/App.app/App" ]; then
               EXEC_TYPE=$(file Payload/App.app/App)
               echo "🔍 Executable type: $EXEC_TYPE"
-              
               if echo "$EXEC_TYPE" | grep -q "Mach-O"; then
-                echo "✅ Valid iOS executable found"
-              else
-                echo "⚠️ Executable may not be valid iOS binary"
+                echo "✅ Valid iOS executable"
               fi
-            else
-              echo "❌ ERROR: No App executable found!"
-              exit 1
             fi
             
-            # Create final IPA
+            # Create IPA
             echo "📦 Creating final IPA..."
             zip -r App.ipa Payload/
             
-            if [ -f "App.ipa" ]; then
-              echo "✅ IPA created successfully"
-              echo "📊 IPA size: $(ls -lh App.ipa | awk '{print $5}')"
-            else
+            if [ ! -f "App.ipa" ]; then
               echo "❌ ERROR: Failed to create IPA!"
               exit 1
             fi
             
-            # Clean up
+            echo "✅ IPA created: $(ls -lh App.ipa)"
             rm -rf Payload/
             
-            echo "✅ IPA preparation complete"
-
-      - run:
-          name: "Install Fastlane"
-          command: |
-            set -e
-            echo "📦 Installing Fastlane"
-            sudo gem install fastlane
-            echo "✅ Fastlane installed: $(fastlane --version)"
-
-      - run:
-          name: "Upload to App Store Connect"
-          command: |
-            set -e
-            echo "🚀 Uploading to App Store Connect"
+            # Install fastlane
+            echo "📦 Installing Fastlane..."
+            sudo gem install fastlane --no-document
             
-            # Verify IPA exists
-            if [ ! -f "App.ipa" ]; then
-              echo "❌ ERROR: App.ipa not found!"
-              exit 1
-            fi
+            # Upload to App Store Connect
+            echo "🚀 Uploading to App Store Connect..."
             
-            # Verify API key exists
             if [ ! -f "AuthKey_${API_KEY_ID}.p8" ]; then
-              echo "❌ ERROR: API key file not found!"
+              echo "❌ ERROR: API key file AuthKey_${API_KEY_ID}.p8 not found!"
               exit 1
             fi
             
-            echo "📱 IPA to upload: $(ls -lh App.ipa)"
-            echo "🔑 Using API Key: $API_KEY_ID"
-            echo "👤 Apple ID: $APPLE_ID"
-            echo "🏢 Team ID: $APPLE_TEAM_ID"
+            echo "📱 Uploading IPA: $(ls -lh App.ipa)"
             
-            # Upload using Fastlane
-            echo "🚀 Starting upload to App Store Connect..."
-            fastlane run upload_to_app_store \
+            # Try fastlane first
+            echo "🚀 Attempting upload with Fastlane..."
+            if fastlane run upload_to_app_store \
               ipa:"App.ipa" \
               api_key_path:"AuthKey_${API_KEY_ID}.p8" \
               api_key:"$API_KEY_ID" \
@@ -181,37 +123,28 @@ jobs:
               skip_waiting_for_build_processing:true \
               skip_metadata:true \
               skip_screenshots:true \
-              force:true
-            
-            if [ $? -eq 0 ]; then
-              echo "🎉 SUCCESS: App uploaded to App Store Connect!"
-              echo "📱 Your app is now available in TestFlight"
-              echo "🔗 Check status at: https://appstoreconnect.apple.com"
+              force:true; then
+              echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
             else
-              echo "❌ Upload failed, trying alternative method..."
-              
-              # Fallback to altool
-              echo "🔄 Attempting upload with altool..."
-              xcrun altool --upload-app \
+              echo "⚠️ Fastlane failed, trying altool..."
+              if xcrun altool --upload-app \
                 --file "App.ipa" \
                 --type ios \
                 --apiKey "$API_KEY_ID" \
                 --apiIssuer "6751101564" \
-                --verbose
-              
-              if [ $? -eq 0 ]; then
-                echo "🎉 SUCCESS: App uploaded via altool!"
+                --verbose; then
+                echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
               else
-                echo "❌ Both upload methods failed"
+                echo "❌ Both upload methods failed!"
                 exit 1
               fi
             fi
-
-      - run:
-          name: "Cleanup"
-          command: |
-            echo "🧹 Cleaning up temporary files"
+            
+            echo "🎉 UPLOAD COMPLETE!"
+            echo "📱 Your app is now processing in App Store Connect"
+            echo "🔗 Check status at: https://appstoreconnect.apple.com"
+            echo "📲 Once processing completes, it will be available in TestFlight"
+            
+            # Cleanup
             rm -f App.ipa
-            security delete-keychain build.keychain || echo "Keychain cleanup completed"
-            echo "✅ Cleanup complete"
-          when: always
+            security delete-keychain build.keychain || echo "Keychain cleanup done"
