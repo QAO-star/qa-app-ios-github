@@ -1112,6 +1112,7 @@ jobs:
                 fi
               else
                 echo "❌ Real iOS app IPA not found, creating test IPA..."
+              fi
             
             # Ensure we're in the correct project directory
             echo "🔍 Current working directory: $(pwd)"
