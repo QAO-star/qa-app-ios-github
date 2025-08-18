@@ -114,6 +114,18 @@ jobs:
               echo "✅ Provisioning profile installed in app bundle"
             fi
             
+            # Fix bundle ID collision in frameworks BEFORE signing
+            echo "🔧 Fixing bundle ID collisions in frameworks (before signing)..."
+            if [ -d "Payload/App.app/Frameworks" ]; then
+              for framework in Payload/App.app/Frameworks/*.framework; do
+                if [ -d "$framework" ] && [ -f "$framework/Info.plist" ]; then
+                  FRAMEWORK_NAME=$(basename "$framework" .framework)
+                  echo "  🔧 Updating bundle ID for $FRAMEWORK_NAME..."
+                  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app.$FRAMEWORK_NAME" "$framework/Info.plist" 2>/dev/null || echo "  Could not update $FRAMEWORK_NAME bundle ID"
+                fi
+              done
+            fi
+            
             # Find signing identity
             SIGNING_IDENTITY=""
             if security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -q "Apple Distribution"; then
@@ -203,18 +215,6 @@ jobs:
                 echo "✅ All frameworks signed successfully"
               else
                 echo "ℹ️  No frameworks directory found"
-              fi
-              
-              # Fix bundle ID collision in frameworks
-              echo "🔧 Fixing bundle ID collisions in frameworks..."
-              if [ -d "Payload/App.app/Frameworks" ]; then
-                for framework in Payload/App.app/Frameworks/*.framework; do
-                  if [ -d "$framework" ] && [ -f "$framework/Info.plist" ]; then
-                    FRAMEWORK_NAME=$(basename "$framework" .framework)
-                    echo "  🔧 Updating bundle ID for $FRAMEWORK_NAME..."
-                    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app.$FRAMEWORK_NAME" "$framework/Info.plist" 2>/dev/null || echo "  Could not update $FRAMEWORK_NAME bundle ID"
-                  fi
-                done
               fi
               
               # Now sign the main app bundle (must be done after frameworks)
