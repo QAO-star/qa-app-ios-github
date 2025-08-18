@@ -139,9 +139,10 @@ jobs:
             echo "✅ IPA created: $(ls -lh App.ipa)"
             rm -rf Payload/
             
-            # Install fastlane
-            echo "📦 Installing Fastlane..."
+            # Install fastlane and required dependencies
+            echo "📦 Installing Fastlane and dependencies..."
             sudo gem install fastlane --no-document
+            pip3 install PyJWT requests
             
             # Upload to App Store Connect
             echo "🚀 Uploading to App Store Connect..."
@@ -159,22 +160,36 @@ jobs:
             echo "🔍 API Key format check:"
             head -1 "AuthKey_${API_KEY_ID}.p8" || echo "Cannot read API key file"
             
-            # Try xcrun notarytool first (newer, more reliable method)
-            echo "🚀 Attempting upload with xcrun notarytool..."
-            if xcrun notarytool submit App.ipa \
-              --key "AuthKey_${API_KEY_ID}.p8" \
-              --key-id "$API_KEY_ID" \
-              --issuer "$ISSUER_ID" \
-              --wait; then
-              echo "🎉 SUCCESS: App uploaded to App Store Connect via notarytool!"
+            # Create directory for API key (required by altool)
+            mkdir -p ~/.appstoreconnect/private_keys
+            cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
+            
+                        # Try Fastlane first (most reliable for iOS App Store uploads)
+            echo "🚀 Attempting upload with Fastlane..."
+            
+            # Create API key object for Fastlane
+            echo '{' > api_key.json
+            echo "  \"key_id\": \"$API_KEY_ID\"," >> api_key.json
+            echo "  \"issuer_id\": \"$ISSUER_ID\"," >> api_key.json
+            echo "  \"key\": \"$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')\"," >> api_key.json
+            echo "  \"duration\": 1200," >> api_key.json
+            echo "  \"in_house\": false" >> api_key.json
+            echo '}' >> api_key.json
+            
+            if fastlane run upload_to_app_store \
+              ipa:"App.ipa" \
+              api_key:"$(cat api_key.json)" \
+              skip_metadata:true \
+              skip_screenshots:true \
+              force:true; then
+              echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
+              rm -f api_key.json
             else
-              echo "⚠️ notarytool failed, trying altool..."
+              echo "⚠️ Fastlane failed, trying altool..."
+              rm -f api_key.json
               
-              # Create directory for API key (required by altool)
-              mkdir -p ~/.appstoreconnect/private_keys
-              cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
-              
-              # Try altool as fallback
+              # Try altool as fallback (proper iOS App Store upload tool)
+              echo "🚀 Attempting upload with xcrun altool..."
               if xcrun altool --upload-app \
                 --file "$(pwd)/App.ipa" \
                 --type ios \
@@ -182,49 +197,24 @@ jobs:
                 --apiIssuer "$ISSUER_ID" \
                 --verbose; then
                 echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
-              else
-                echo "⚠️ altool failed, trying Fastlane as last resort..."
-                
-                # Try Fastlane with proper API key object
-                echo "🚀 Attempting upload with Fastlane (API key object)..."
-                
-                # Create API key object for Fastlane
-                echo '{' > api_key.json
-                echo "  \"key_id\": \"$API_KEY_ID\"," >> api_key.json
-                                 echo "  \"issuer_id\": \"$ISSUER_ID\"," >> api_key.json
-                echo "  \"key\": \"$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')\"," >> api_key.json
-                echo "  \"duration\": 1200," >> api_key.json
-                echo "  \"in_house\": false" >> api_key.json
-                echo '}' >> api_key.json
-                
-                if fastlane run upload_to_app_store \
-                  ipa:"App.ipa" \
-                  api_key:"$(cat api_key.json)" \
-                  skip_metadata:true \
-                  skip_screenshots:true \
-                  force:true; then
-                  echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
-                  rm -f api_key.json
-                else
-                  echo "❌ All upload methods failed!"
-                  echo ""
-                  echo "🔍 TROUBLESHOOTING GUIDE:"
-                  echo "📋 1. Check API key permissions in App Store Connect:"
-                  echo "   - Go to Users and Access > Keys"
-                  echo "   - Ensure key has 'App Manager' or 'Admin' role"
-                  echo "   - Verify 'Access to App Store Connect API' is enabled"
-                  echo ""
-                  echo "📋 2. Check API key status:"
-                  echo "   - Ensure key is not expired"
-                  echo "   - Verify key is still active"
-                  echo ""
-                  echo "📋 3. Check app configuration:"
-                  echo "   - Verify bundle ID matches App Store Connect"
-                  echo "   - Ensure app exists in App Store Connect"
-                  echo ""
-                  rm -f api_key.json
-                  exit 1
-                fi
+                echo "❌ All upload methods failed!"
+                echo ""
+                echo "🔍 TROUBLESHOOTING GUIDE:"
+                echo "📋 1. Check API key permissions in App Store Connect:"
+                echo "   - Go to Users and Access > Keys"
+                echo "   - Ensure key has 'App Manager' or 'Admin' role"
+                echo "   - Verify 'Access to App Store Connect API' is enabled"
+                echo ""
+                echo "📋 2. Check API key status:"
+                echo "   - Ensure key is not expired"
+                echo "   - Verify key is still active"
+                echo ""
+                echo "📋 3. Check app configuration:"
+                echo "   - Verify bundle ID matches App Store Connect"
+                echo "   - Ensure app exists in App Store Connect"
+                echo "   - Check if app record exists for 'com.qaonline.app'"
+                echo ""
+                exit 1
               fi
             fi
             
