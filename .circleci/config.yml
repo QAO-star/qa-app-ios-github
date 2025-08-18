@@ -1294,10 +1294,48 @@ jobs:
                   cp Payload/App.app/AppIcon-1024.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
                   
                   # Create comprehensive Contents.json for the icon set with all required entries INCLUDING 1024x1024
-                  printf '{\n  "images" : [\n    {\n      "filename" : "AppIcon60x60@2x.png",\n      "idiom" : "iphone",\n      "scale" : "2x",\n      "size" : "60x60"\n    },\n    {\n      "filename" : "AppIcon76x76@2x.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "76x76"\n    },\n    {\n      "filename" : "AppIcon83.5x83.5@2x.png",\n      "idiom" : "ipad",\n      "scale" : "2x",\n      "size" : "83.5x83.5"\n    },\n    {\n      "filename" : "AppIcon-1024.png",\n      "idiom" : "ios-marketing",\n      "scale" : "1x",\n      "size" : "1024x1024"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  # Create comprehensive Contents.json for the icon set using printf
+                  printf '%s\n' '{' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '  "images" : [' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "filename" : "AppIcon60x60@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "idiom" : "iphone",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "size" : "60x60"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "filename" : "AppIcon76x76@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "idiom" : "ipad",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "size" : "76x76"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "filename" : "AppIcon83.5x83.5@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "idiom" : "ipad",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "size" : "83.5x83.5"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "filename" : "AppIcon-1024.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "idiom" : "ios-marketing",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "scale" : "1x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '      "size" : "1024x1024"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    }' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '  ],' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '  "info" : {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    "author" : "xcode",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '    "version" : 1' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '  }' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
+                  printf '%s\n' '}' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
                   
                   # Create root Contents.json for Assets.xcassets
-                  printf '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}' > Payload/App.app/Assets.xcassets/Contents.json
+                  # Create root Contents.json for Assets.xcassets using printf
+                  printf '%s\n' '{' > Payload/App.app/Assets.xcassets/Contents.json
+                  printf '%s\n' '  "info" : {' >> Payload/App.app/Assets.xcassets/Contents.json
+                  printf '%s\n' '    "author" : "xcode",' >> Payload/App.app/Assets.xcassets/Contents.json
+                  printf '%s\n' '    "version" : 1' >> Payload/App.app/Assets.xcassets/Contents.json
+                  printf '%s\n' '  }' >> Payload/App.app/Assets.xcassets/Contents.json
+                  printf '%s\n' '}' >> Payload/App.app/Assets.xcassets/Contents.json
                   
                   echo "✅ Created comprehensive Assets.xcassets with proper icon structure"
                   ls -la Payload/App.app/Icon*.png Payload/App.app/AppIcon*.png
