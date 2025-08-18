@@ -100,6 +100,33 @@ jobs:
               fi
             fi
             
+            # Fix Info.plist version format for App Store compliance
+            echo "🔧 Fixing version format in Info.plist..."
+            python3 -c "
+            import plistlib
+            import shutil
+            
+            # Read the current Info.plist
+            with open('Payload/App.app/Info.plist', 'rb') as f:
+                plist = plistlib.load(f)
+            
+            # Backup original
+            shutil.copy('Payload/App.app/Info.plist', 'Payload/App.app/Info.plist.backup')
+            
+            # Fix the version string - remove invalid prefixes
+            old_version = plist['CFBundleShortVersionString']
+            new_version = old_version.replace('release-v', '').replace('v', '')
+            plist['CFBundleShortVersionString'] = new_version
+            
+            print(f'Version fixed: {old_version} -> {new_version}')
+            
+            # Write the corrected Info.plist
+            with open('Payload/App.app/Info.plist', 'wb') as f:
+                plistlib.dump(plist, f)
+            
+            print('Info.plist updated for App Store compliance')
+            "
+            
             # Create IPA
             echo "📦 Creating final IPA..."
             zip -r App.ipa Payload/
