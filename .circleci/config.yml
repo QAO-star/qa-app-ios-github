@@ -54,7 +54,11 @@ jobs:
             security list-keychains -s build.keychain
             security default-keychain -s build.keychain
             security unlock-keychain -p "" build.keychain
-            security set-keychain-settings build.keychain
+            security set-keychain-settings -t 3600 -l build.keychain
+            
+            # Set partition list to allow codesign access without prompting
+            echo "🔐 Configuring keychain access for codesign..."
+            security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain || echo "Partition list setup completed"
             
             # Install certificates
             echo "🔐 Installing certificates..."
@@ -124,15 +128,31 @@ jobs:
               # Sign frameworks first (CRITICAL for App Store Connect validation)
               if [ -d "Payload/App.app/Frameworks" ]; then
                 echo "🔐 Signing frameworks individually..."
+                
+                # Ensure keychain is unlocked and accessible
+                security unlock-keychain -p "" build.keychain
+                security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+                
                 for framework in Payload/App.app/Frameworks/*.framework; do
                   if [ -d "$framework" ]; then
                     echo "  🔐 Signing $(basename "$framework")..."
-                    codesign --force --sign "$SIGNING_IDENTITY" "$framework"
-                    if [ $? -eq 0 ]; then
+                    
+                    # Use timeout to prevent hanging
+                    if timeout 60 codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework"; then
                       echo "  ✅ $(basename "$framework") signed successfully"
                     else
-                      echo "  ❌ Failed to sign $(basename "$framework")"
-                      exit 1
+                      echo "  ❌ Failed to sign $(basename "$framework") (timeout or error)"
+                      echo "  🔍 Attempting with different codesign parameters..."
+                      
+                      # Try alternative signing approach
+                      if timeout 60 codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain "$framework"; then
+                        echo "  ✅ $(basename "$framework") signed with alternative method"
+                      else
+                        echo "  ❌ All signing attempts failed for $(basename "$framework")"
+                        echo "  📋 Available identities:"
+                        security find-identity -v -p codesigning build.keychain
+                        exit 1
+                      fi
                     fi
                   fi
                 done
@@ -143,12 +163,21 @@ jobs:
               
               # Now sign the main app bundle (must be done after frameworks)
               echo "🔐 Signing main app bundle..."
-              codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/
-              if [ $? -eq 0 ]; then
+              if timeout 90 codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/; then
                 echo "✅ Main app bundle signed successfully"
               else
-                echo "❌ Failed to sign main app bundle"
-                exit 1
+                echo "❌ Failed to sign main app bundle (timeout or error)"
+                echo "🔍 Attempting with different codesign parameters..."
+                
+                # Try alternative signing approach for main app
+                if timeout 90 codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain Payload/App.app/; then
+                  echo "✅ Main app bundle signed with alternative method"
+                else
+                  echo "❌ All signing attempts failed for main app bundle"
+                  echo "📋 Available identities:"
+                  security find-identity -v -p codesigning build.keychain
+                  exit 1
+                fi
               fi
               
               # Verify all signatures
