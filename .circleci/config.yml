@@ -27,10 +27,23 @@ jobs:
             APPLE_ID=$(cat apple.id | tr -d '\n\r' | head -1)
             API_KEY_ID=$(cat AuthKey_ZA7M4DJPV8.id | tr -d '\n\r' | head -1)
             
+            # Check if apple.id contains Apple ID (numeric) or Issuer ID (UUID)
+            if [[ "$APPLE_ID" =~ ^[0-9]+$ ]]; then
+              echo "⚠️ WARNING: apple.id contains Apple ID ($APPLE_ID), not Issuer ID"
+              echo "🔍 Issuer ID should be a UUID like: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              echo "📋 Find it at: https://appstoreconnect.apple.com/access/api"
+              echo ""
+              echo "🔧 For now, using placeholder - THIS WILL FAIL UNTIL FIXED"
+              ISSUER_ID="PLACEHOLDER-NEED-REAL-ISSUER-ID-UUID"
+            else
+              ISSUER_ID="$APPLE_ID"
+            fi
+            
             echo "🚀 Starting App Store Connect upload"
             echo "📋 Configuration:"
             echo "  Team ID: $APPLE_TEAM_ID"
             echo "  Apple ID: $APPLE_ID" 
+            echo "  Issuer ID: $ISSUER_ID"
             echo "  API Key ID: $API_KEY_ID"
             
             # Setup keychain
@@ -113,7 +126,7 @@ jobs:
             
             echo "📱 Uploading IPA: $(ls -lh App.ipa)"
             echo "🔑 Using API Key: $API_KEY_ID"
-            echo "🏢 Issuer ID: 6751101564"
+            echo "🏢 Issuer ID: $ISSUER_ID"
             
             # Debug API key format
             echo "🔍 API Key format check:"
@@ -124,7 +137,7 @@ jobs:
             if xcrun notarytool submit App.ipa \
               --key "AuthKey_${API_KEY_ID}.p8" \
               --key-id "$API_KEY_ID" \
-              --issuer "6751101564" \
+              --issuer "$ISSUER_ID" \
               --wait; then
               echo "🎉 SUCCESS: App uploaded to App Store Connect via notarytool!"
             else
@@ -139,7 +152,7 @@ jobs:
                 --file "$(pwd)/App.ipa" \
                 --type ios \
                 --apiKey "$API_KEY_ID" \
-                --apiIssuer "6751101564" \
+                --apiIssuer "$ISSUER_ID" \
                 --verbose; then
                 echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
               else
@@ -151,7 +164,7 @@ jobs:
                 # Create API key object for Fastlane
                 echo '{' > api_key.json
                 echo "  \"key_id\": \"$API_KEY_ID\"," >> api_key.json
-                echo "  \"issuer_id\": \"6751101564\"," >> api_key.json
+                                 echo "  \"issuer_id\": \"$ISSUER_ID\"," >> api_key.json
                 echo "  \"key\": \"$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')\"," >> api_key.json
                 echo "  \"duration\": 1200," >> api_key.json
                 echo "  \"in_house\": false" >> api_key.json
