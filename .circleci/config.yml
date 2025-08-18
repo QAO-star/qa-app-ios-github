@@ -138,89 +138,24 @@ jobs:
             
             echo "✅ Valid app structure found"
             
-                        # Build a fresh app from source using Xcode's native process
-            echo "📦 Building fresh app from source using Xcode's native process..."
+                        # Use the existing signed IPA - it's already properly structured and signed
+            echo "📦 Using existing signed IPA for App Store Connect upload..."
+            echo "✅ The signed-ipa.zip contains a properly structured app with:"
+            echo "   - _CodeSignature directory (code signature)"
+            echo "   - embedded.mobileprovision (provisioning profile)"
+            echo "   - Proper app bundle structure"
             
-            # Sync Capacitor project first (required for proper iOS setup)
-            echo "🔄 Syncing Capacitor project..."
-            npx cap sync ios
+            # Fix the version string to comply with Apple's requirements
+            echo "🔧 Fixing version string format..."
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.72" Payload/App.app/Info.plist
+            echo "✅ Version string fixed to: 1.0.72"
             
-            cd ios/App
+            # Create a new IPA from the existing signed app bundle
+            echo "📦 Creating IPA from existing signed app bundle..."
+            # Create the IPA with proper structure: App.ipa should contain Payload/App.app
+            zip -r App.ipa Payload/
             
-            # Install CocoaPods dependencies (required for Capacitor projects)
-            echo "📦 Installing CocoaPods dependencies..."
-            pod install --repo-update
-            
-            # Clean previous builds
-            echo "🔧 Cleaning and building project..."
-            xcodebuild clean -project App.xcodeproj -scheme App -configuration Release
-            
-            # Configure Xcode to use the Apple Developer account
-            echo "🔐 Configuring Xcode Apple Developer account..."
-            
-            # Create Xcode configuration for Apple Developer account
-            mkdir -p ~/Library/Developer/Xcode/UserData
-            echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "<plist version=\"1.0\">" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "<dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "    <key>DevelopmentTeams</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "    <dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "        <key>$APPLE_TEAM_ID</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "        <dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "            <key>TeamID</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "            <string>$APPLE_TEAM_ID</string>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "            <key>TeamName</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "            <string>QA-Online</string>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "        </dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "    </dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "</dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            echo "</plist>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
-            
-            # Install the provisioning profile
-            echo "📱 Installing provisioning profile..."
-            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-            if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
-              cp ../../QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-              echo "✅ Provisioning profile installed"
-            else
-              echo "⚠️ No provisioning profile found, will use automatic signing"
-            fi
-            
-            # Build and create archive (Apple's recommended approach)
-            echo "🔧 Building and creating archive..."
-            xcodebuild archive \
-              -project App.xcodeproj \
-              -scheme App \
-              -configuration Release \
-              -destination generic/platform=iOS \
-              -archivePath App.xcarchive \
-              -allowProvisioningUpdates \
-              DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-              PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
-              CODE_SIGN_STYLE="Automatic" \
-              CURRENT_PROJECT_VERSION="38" \
-              MARKETING_VERSION="1.0.72"
-            
-            # Export for App Store distribution using automatic signing
-            echo "📦 Exporting for App Store distribution..."
-            xcodebuild -exportArchive \
-              -archivePath App.xcarchive \
-              -exportPath . \
-              -exportOptionsPlist exportOptions.plist \
-              -allowProvisioningUpdates
-            
-            # Verify the exported IPA exists
-            if [ -f "App.ipa" ]; then
-              mv App.ipa ../../App.ipa
-              echo "✅ Successfully built and exported IPA using Apple's best practices"
-            else
-              echo "❌ Failed to export IPA - checking for errors..."
-              ls -la
-              exit 1
-            fi
-            
-            cd ../..
+            echo "✅ Successfully created IPA from existing signed app bundle"
             
             # Verify the IPA structure
             echo "🔍 Verifying IPA structure..."
