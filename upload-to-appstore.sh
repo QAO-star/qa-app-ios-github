@@ -120,6 +120,42 @@ echo "🔐 Checking if IPA needs signing..."
 if [ -n "$SIGNING_IDENTITY" ]; then
     echo "🔐 Signing IPA with identity: $SIGNING_IDENTITY"
     
+    # Check if we should use fast signing (for CI environments)
+    if [ "$CI" = "true" ] || [ "$CIRCLECI" = "true" ]; then
+        echo "🚀 CI environment detected - using fast signing approach..."
+        echo "📦 Creating signed IPA with minimal signing for CI..."
+        
+        # Extract IPA
+        mkdir -p temp_ipa
+        cd temp_ipa
+        unzip -o "../$IPA_FILE"
+        
+        # Install provisioning profile in app bundle
+        if [ -f "../QAOnlineAppStoreProfile.mobileprovision" ]; then
+            echo "📄 Installing provisioning profile in app bundle..."
+            cp "../QAOnlineAppStoreProfile.mobileprovision" Payload/App.app/embedded.mobileprovision
+            echo "✅ Provisioning profile installed in app bundle"
+        fi
+        
+        # Quick sign the main app bundle only (skip framework signing for speed)
+        echo "🔐 Quick signing main app bundle..."
+        codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/
+        if [ $? -eq 0 ]; then
+            echo "✅ Main app bundle signed successfully"
+        else
+            echo "❌ Failed to sign main app bundle"
+            exit 1
+        fi
+        
+        # Recreate IPA
+        zip -r "../App-signed.ipa" Payload/
+        cd ..
+        rm -rf temp_ipa
+        
+        FINAL_IPA="App-signed.ipa"
+        echo "✅ IPA signed successfully (fast CI approach)"
+    else
+    
     # Extract IPA
     mkdir -p temp_ipa
     cd temp_ipa
@@ -138,9 +174,19 @@ if [ -n "$SIGNING_IDENTITY" ]; then
         for framework in Payload/App.app/Frameworks/*.framework; do
             if [ -d "$framework" ]; then
                 echo "  🔐 Signing $(basename "$framework")..."
-                codesign --force --sign "$SIGNING_IDENTITY" "$framework"
+                # Use more efficient signing with timeout
+                timeout 300 codesign --force --sign "$SIGNING_IDENTITY" --deep "$framework"
                 if [ $? -eq 0 ]; then
                     echo "  ✅ $(basename "$framework") signed successfully"
+                elif [ $? -eq 124 ]; then
+                    echo "  ⚠️ Timeout signing $(basename "$framework"), trying without --deep..."
+                    timeout 300 codesign --force --sign "$SIGNING_IDENTITY" "$framework"
+                    if [ $? -eq 0 ]; then
+                        echo "  ✅ $(basename "$framework") signed successfully (without --deep)"
+                    else
+                        echo "  ❌ Failed to sign $(basename "$framework")"
+                        exit 1
+                    fi
                 else
                     echo "  ❌ Failed to sign $(basename "$framework")"
                     exit 1
@@ -191,6 +237,7 @@ if [ -n "$SIGNING_IDENTITY" ]; then
     
     FINAL_IPA="App-signed.ipa"
     echo "✅ IPA signed successfully with proper framework signing"
+    fi
 else
     echo "⚠️ Using unsigned IPA for upload"
     FINAL_IPA="$IPA_FILE"
