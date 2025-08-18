@@ -655,13 +655,22 @@ jobs:
                 echo "✅ Found existing signed IPA, using it instead of building"
                 cd ../..
                 unzip -o signed-ipa.zip
-                if [ -f "App.ipa" ]; then
-                  echo "✅ Successfully extracted existing signed IPA"
-                  REAL_IPA_CREATED=true
-                  FINAL_IPA="App.ipa"
-                  BUILD_EXIT_CODE=0
+                if [ -d "Payload" ]; then
+                  echo "✅ Successfully extracted existing signed IPA structure"
+                  # Create the IPA file from the Payload directory
+                  zip -r App.ipa Payload/
+                  if [ -f "App.ipa" ]; then
+                    echo "✅ Successfully created App.ipa from Payload"
+                    REAL_IPA_CREATED=true
+                    FINAL_IPA="App.ipa"
+                    BUILD_EXIT_CODE=0
+                  else
+                    echo "❌ Failed to create App.ipa from Payload"
+                    cd ios/App
+                    REAL_IPA_CREATED=false
+                  fi
                 else
-                  echo "❌ Failed to extract App.ipa from signed-ipa.zip"
+                  echo "❌ Failed to extract Payload from signed-ipa.zip"
                   cd ios/App
                   REAL_IPA_CREATED=false
                 fi
@@ -682,82 +691,81 @@ jobs:
                 else
                   echo "✅ Workspace file exists"
                 
-                # Check if scheme exists
-                if [ ! -f "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme" ]; then
-                  echo "⚠️ App scheme missing, but proceeding with build"
-                fi
-                
-                # Run xcodebuild with improved settings and better error reporting
-                echo "🔨 Building with improved settings..."
-                echo "🔍 Archive command details:"
-                echo "  Workspace: App.xcworkspace"
-                echo "  Scheme: App"
-                echo "  Configuration: Release"
-                echo "  Destination: generic/platform=iOS"
-                echo "  Code Signing: Apple Distribution with Team ID"
-                
-                # Configure project settings for proper code signing
-                echo "🔧 Configuring project for App Store signing..."
-                
-                # Extract the actual provisioning profile UUID from the .mobileprovision file
-                cd ../../  # Go to project root to find the .mobileprovision file
-                echo "🔍 Extracting provisioning profile UUID from QAOnlineAppStoreProfile.mobileprovision..."
-                if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                  # Extract the profile UUID (more reliable than name)
-                  PROFILE_UUID=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract UUID xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
-                  if [ -n "$PROFILE_UUID" ]; then
-                    echo "✅ Found provisioning profile UUID: $PROFILE_UUID"
-                    PROFILE_SPECIFIER="$PROFILE_UUID"
-                  else
-                    echo "⚠️ Could not extract profile UUID, trying name instead"
-                    PROFILE_NAME=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract Name xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
-                    if [ -n "$PROFILE_NAME" ]; then
-                      echo "✅ Found provisioning profile name: $PROFILE_NAME"
-                      PROFILE_SPECIFIER="$PROFILE_NAME"
-                    else
-                      echo "⚠️ Could not extract profile info, using filename fallback"
-                      PROFILE_SPECIFIER="QAOnlineAppStoreProfile"
-                    fi
+                  # Check if scheme exists
+                  if [ ! -f "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme" ]; then
+                    echo "⚠️ App scheme missing, but proceeding with build"
                   fi
-                else
-                  echo "⚠️ QAOnlineAppStoreProfile.mobileprovision not found, using default name"
-                  PROFILE_SPECIFIER="QA-Online-AppStore"
-                fi
-                cd ios/App  # Go back to iOS project directory
                 
-                # Set development team and use AUTOMATIC code signing to let Xcode generate compatible profile
-                sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
-                sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
-                sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Code sign style already automatic"
-                
-                # Clean up any existing provisioning profile specifiers to let Xcode auto-generate
-                sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
-                sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
-                
-                echo "✅ Project configured for AUTOMATIC signing with team $APPLE_TEAM_ID (Xcode will auto-generate compatible provisioning profile)"
-                
-                # Build with minimal settings and capture errors for analysis
-                echo "🔍 Running xcodebuild archive with error capture..."
-                set +e  # Don't exit on error
-                
-                # Capture both stdout and stderr, but also show real-time output
-                # Use proper code signing with our Apple Distribution certificate
-                # Use automatic code signing with our Apple Distribution certificate
-                # Xcode will automatically generate a compatible provisioning profile
-                # Remove CODE_SIGN_IDENTITY for automatic signing - Xcode handles identity selection
-                # Add -allowProvisioningUpdates to enable automatic provisioning profile generation
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
-              BUILD_EXIT_CODE=$?
-                set -e  # Re-enable exit on error
-                
-                if [ $BUILD_EXIT_CODE -ne 0 ]; then
-                  echo "🔍 Build failed, analyzing errors..."
-                  echo "📋 Error summary from build output:"
-                  echo "$BUILD_OUTPUT" | grep -E "(error:|Error:|ERROR:|failure:|FAILURE:|❌|✗)" | head -10 || echo "No clear error patterns found"
-                fi
-                
-                echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
-              fi
+                  # Run xcodebuild with improved settings and better error reporting
+                  echo "🔨 Building with improved settings..."
+                  echo "🔍 Archive command details:"
+                  echo "  Workspace: App.xcworkspace"
+                  echo "  Scheme: App"
+                  echo "  Configuration: Release"
+                  echo "  Destination: generic/platform=iOS"
+                  echo "  Code Signing: Apple Distribution with Team ID"
+                  
+                  # Configure project settings for proper code signing
+                  echo "🔧 Configuring project for App Store signing..."
+                  
+                  # Extract the actual provisioning profile UUID from the .mobileprovision file
+                  cd ../../  # Go to project root to find the .mobileprovision file
+                  echo "🔍 Extracting provisioning profile UUID from QAOnlineAppStoreProfile.mobileprovision..."
+                  if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                    # Extract the profile UUID (more reliable than name)
+                    PROFILE_UUID=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract UUID xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
+                    if [ -n "$PROFILE_UUID" ]; then
+                      echo "✅ Found provisioning profile UUID: $PROFILE_UUID"
+                      PROFILE_SPECIFIER="$PROFILE_UUID"
+                    else
+                      echo "⚠️ Could not extract profile UUID, trying name instead"
+                      PROFILE_NAME=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract Name xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
+                      if [ -n "$PROFILE_NAME" ]; then
+                        echo "✅ Found provisioning profile name: $PROFILE_NAME"
+                        PROFILE_SPECIFIER="$PROFILE_NAME"
+                      else
+                        echo "⚠️ Could not extract profile info, using filename fallback"
+                        PROFILE_SPECIFIER="QAOnlineAppStoreProfile"
+                      fi
+                    fi
+                  else
+                    echo "⚠️ QAOnlineAppStoreProfile.mobileprovision not found, using default name"
+                    PROFILE_SPECIFIER="QA-Online-AppStore"
+                  fi
+                  cd ios/App  # Go back to iOS project directory
+                  
+                  # Set development team and use AUTOMATIC code signing to let Xcode generate compatible profile
+                  sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
+                  sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
+                  sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Code sign style already automatic"
+                  
+                  # Clean up any existing provisioning profile specifiers to let Xcode auto-generate
+                  sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
+                  sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
+                  
+                  echo "✅ Project configured for AUTOMATIC signing with team $APPLE_TEAM_ID (Xcode will auto-generate compatible provisioning profile)"
+                  
+                  # Build with minimal settings and capture errors for analysis
+                  echo "🔍 Running xcodebuild archive with error capture..."
+                  set +e  # Don't exit on error
+                  
+                  # Capture both stdout and stderr, but also show real-time output
+                  # Use proper code signing with our Apple Distribution certificate
+                  # Use automatic code signing with our Apple Distribution certificate
+                  # Xcode will automatically generate a compatible provisioning profile
+                  # Remove CODE_SIGN_IDENTITY for automatic signing - Xcode handles identity selection
+                  # Add -allowProvisioningUpdates to enable automatic provisioning profile generation
+                  BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                  BUILD_EXIT_CODE=$?
+                  set -e  # Re-enable exit on error
+                  
+                  if [ $BUILD_EXIT_CODE -ne 0 ]; then
+                    echo "🔍 Build failed, analyzing errors..."
+                    echo "📋 Error summary from build output:"
+                    echo "$BUILD_OUTPUT" | grep -E "(error:|Error:|ERROR:|failure:|FAILURE:|❌|✗)" | head -10 || echo "No clear error patterns found"
+                  fi
+                  
+                  echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
                 fi  # Close the workspace check
               fi  # Close the if [ -f "../../signed-ipa.zip" ] statement
             
