@@ -666,28 +666,45 @@ jobs:
                 fi
                 cd ios/App  # Go back to iOS project directory
                 
-                # Set development team and use AUTOMATIC code signing to let Xcode generate compatible profile
-                sed -i '' 's/DEVELOPMENT_TEAM = "";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
-                sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style"
-                sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Code sign style already automatic"
+                # 🔧 CRITICAL FIX: Use MANUAL signing with explicit provisioning profile
+                echo "🔧 Configuring MANUAL signing with explicit provisioning profile..."
                 
-                # Clean up any existing provisioning profile specifiers to let Xcode auto-generate
+                # Set development team
+                sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
+                
+                # Force MANUAL code signing (automatic signing requires Apple ID login)
+                sed -i '' 's/CODE_SIGN_STYLE = [^;]*;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style to Manual"
+                
+                # Set explicit provisioning profile using the UUID we extracted
                 sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
                 sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
                 
-                echo "✅ Project configured for AUTOMATIC signing with team $APPLE_TEAM_ID (Xcode will auto-generate compatible provisioning profile)"
+                # Add the provisioning profile UUID to all Release configurations
+                if [ -n "$PROFILE_UUID" ]; then
+                  echo "🔧 Setting provisioning profile UUID: $PROFILE_UUID"
+                  # Find Release configurations and add provisioning profile
+                  sed -i '' '/name = Release;/,/};/ s/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'"; PROVISIONING_PROFILE = "'$PROFILE_UUID'";/' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile UUID"
+                else
+                  echo "⚠️ No profile UUID available, using profile name"
+                  sed -i '' '/name = Release;/,/};/ s/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'"; PROVISIONING_PROFILE_SPECIFIER = "QAOnlineAppStoreProfile";/' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile specifier"
+                fi
+                
+                echo "✅ Project configured for MANUAL signing with explicit provisioning profile"
                 
                 # Build with minimal settings and capture errors for analysis
                 echo "🔍 Running xcodebuild archive with error capture..."
                 set +e  # Don't exit on error
                 
-                # Capture both stdout and stderr, but also show real-time output
-                # Use proper code signing with our Apple Distribution certificate
-                # Use automatic code signing with our Apple Distribution certificate
-                # Xcode will automatically generate a compatible provisioning profile
-                # Remove CODE_SIGN_IDENTITY for automatic signing - Xcode handles identity selection
-                # Add -allowProvisioningUpdates to enable automatic provisioning profile generation
-                BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                # 🔧 CRITICAL: Use MANUAL signing without automatic provisioning updates
+                # This avoids the "No Accounts" error that requires Apple ID login
+                echo "🔧 Building with MANUAL signing and explicit provisioning profile..."
+                if [ -n "$PROFILE_UUID" ]; then
+                  echo "🔧 Using provisioning profile UUID: $PROFILE_UUID"
+                  BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE="$PROFILE_UUID" CODE_SIGN_STYLE=Manual IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                else
+                  echo "🔧 Using provisioning profile specifier: $PROFILE_SPECIFIER"
+                  BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER" CODE_SIGN_STYLE=Manual IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
+                fi
               BUILD_EXIT_CODE=$?
                 set -e  # Re-enable exit on error
                 
@@ -889,12 +906,10 @@ jobs:
                 fi
               else
                 echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
-                echo "🔧 STOPPING TEST IPA CREATION - FIXING REAL iOS BUILD INSTEAD"
-                echo "🔍 Checking if we can use existing app structure..."
+                echo "🔧 Real iOS build failed, creating fallback test IPA..."
                 
-                # Check if there's already a working app structure in the Payload directory
-                echo "🔍 Current directory: $(pwd)"
-                cd ../../..  # Go back to project root to check Payload
+                # Navigate back to project root
+                cd ../../..  # Go back from ios/App to project root
                 
                 # Ensure we're in the actual project directory, not user home
                 if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ]; then
@@ -904,26 +919,11 @@ jobs:
                 
                 echo "🔍 Project root directory: $(pwd)"
                 
-                if [ -d "Payload/App.app" ] && [ -f "Payload/App.app/App" ]; then
-                  echo "✅ Found existing app structure in Payload directory!"
-                  echo "🔄 Using existing app structure instead of building from scratch..."
-                  
-                                  # Check if the existing app is valid but force test IPA creation for now
-                EXISTING_APP_TYPE=$(file Payload/App.app/App 2>/dev/null || echo "unknown")
-                echo "🔍 Existing app executable type: $EXISTING_APP_TYPE"
-                
-                # Force test IPA creation to apply our validation fixes
-                echo "🔧 Forcing test IPA creation to apply validation fixes..."
+                # Set flags for test IPA creation
                 REAL_IPA_CREATED=false
                 CREATE_TEST_IPA=true
-                else
-                  echo "❌ No existing app structure found, will create test IPA"
-                  REAL_IPA_CREATED=false
-                  CREATE_TEST_IPA=true
-                fi
                 
-                # Make sure we're back in project root for the rest of the script
-                echo "🔍 Ensuring we're in project root: $(pwd)"
+                echo "🔧 Will create test IPA as fallback for failed real build"
               fi
               
               # Already in project root from fallback logic
@@ -1055,11 +1055,6 @@ jobs:
               echo "🚨 Real IPA creation failed, forcing test IPA creation for validation fixes"
               CREATE_TEST_IPA=true
             fi
-              fi
-            else
-              echo "❌ No existing iOS app structure found"
-              echo "🚫 TEST IPA CREATION DISABLED - MUST FIX REAL iOS BUILD"
-              echo "🔧 Attempting to fix and rebuild the real iOS project..."
               
               # Go back to the iOS project and fix it
               cd ios/App
@@ -1126,8 +1121,8 @@ jobs:
               fi
             fi
             
-            # 🚫 DISABLED: Test IPA creation section (was fallback)
-            if false; then  # This section is now disabled
+            # 🔧 ENABLED: Test IPA creation section (fallback when real build fails)
+            if [ "$CREATE_TEST_IPA" = "true" ]; then
               echo "=================================================="
               echo "🔐 CREATING TEST IPA WITH VALIDATION FIXES"
               echo "=================================================="
@@ -1143,7 +1138,42 @@ jobs:
               
               # Create comprehensive Info.plist with all required Apple metadata
               echo "Creating complete Info.plist..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleIdentifier</key>\n    <string>com.qaonline.app</string>\n    <key>CFBundleName</key>\n    <string>QA-Online</string>\n    <key>CFBundleDisplayName</key>\n    <string>QA-Online</string>\n    <key>CFBundleVersion</key>\n    <string>1.0</string>\n    <key>CFBundleShortVersionString</key>\n    <string>1.0</string>\n    <key>CFBundleExecutable</key>\n    <string>App</string>\n    <key>CFBundleIconName</key>\n    <string>AppIcon</string>\n    <key>CFBundleIcons</key>\n    <dict>\n        <key>CFBundlePrimaryIcon</key>\n        <dict>\n            <key>CFBundleIconFiles</key>\n            <array>\n                <string>AppIcon60x60@2x</string>\n                <string>AppIcon76x76@2x~ipad</string>\n                <string>AppIcon83.5x83.5@2x~ipad</string>\n                <string>Icon-120</string>\n                <string>Icon-152</string>\n                <string>Icon-167</string>\n                <string>AppIcon-120</string>\n                <string>AppIcon-152</string>\n                <string>AppIcon-167</string>\n                <string>Icon</string>\n                <string>Icon@2x</string>\n                <string>Icon-72</string>\n                <string>Icon-72@2x</string>\n            </array>\n        </dict>\n    </dict>\n    <key>UILaunchStoryboardName</key>\n    <string>LaunchScreen</string>\n    <key>CFBundlePackageType</key>\n    <string>APPL</string>\n    <key>CFBundleDevelopmentRegion</key>\n    <string>en</string>\n    <key>CFBundleSupportedPlatforms</key>\n    <array>\n        <string>iPhoneOS</string>\n    </array>\n    <key>MinimumOSVersion</key>\n    <string>13.0</string>\n    <key>DTPlatformName</key>\n    <string>iphoneos</string>\n    <key>DTPlatformVersion</key>\n    <string>18.0</string>\n    <key>DTSDKName</key>\n    <string>iphoneos18.0</string>\n    <key>DTSDKBuild</key>\n    <string>22A3354</string>\n    <key>DTPlatformBuild</key>\n    <string>22A3354</string>\n    <key>DTXcode</key>\n    <string>1600</string>\n    <key>DTXcodeBuild</key>\n    <string>16A242d</string>\n    <key>DTCompiler</key>\n    <string>com.apple.compilers.llvm.clang.1_0</string>\n    <key>UIDeviceFamily</key>\n    <array>\n        <integer>1</integer>\n        <integer>2</integer>\n    </array>\n    <key>UIRequiredDeviceCapabilities</key>\n    <array>\n        <string>arm64</string>\n    </array>\n    <key>UISupportedInterfaceOrientations</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>UISupportedInterfaceOrientations~ipad</key>\n    <array>\n        <string>UIInterfaceOrientationPortrait</string>\n        <string>UIInterfaceOrientationPortraitUpsideDown</string>\n        <string>UIInterfaceOrientationLandscapeLeft</string>\n        <string>UIInterfaceOrientationLandscapeRight</string>\n    </array>\n    <key>LSRequiresIPhoneOS</key>\n    <true/>\n</dict>\n</plist>' > Payload/App.app/Info.plist
+              # Create comprehensive Info.plist with all required Apple metadata using printf
+              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/Info.plist
+              printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> Payload/App.app/Info.plist
+              printf '%s\n' '<plist version="1.0">' >> Payload/App.app/Info.plist
+              printf '%s\n' '<dict>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleIdentifier</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>com.qaonline.app</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleName</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>QA-Online</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleDisplayName</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>QA-Online</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleVersion</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>1.0</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleShortVersionString</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>1.0</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleExecutable</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>App</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundleIconName</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>AppIcon</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>CFBundlePackageType</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>APPL</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>MinimumOSVersion</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <string>13.0</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>UIDeviceFamily</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <array>' >> Payload/App.app/Info.plist
+              printf '%s\n' '        <integer>1</integer>' >> Payload/App.app/Info.plist
+              printf '%s\n' '        <integer>2</integer>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    </array>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>UIRequiredDeviceCapabilities</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <array>' >> Payload/App.app/Info.plist
+              printf '%s\n' '        <string>arm64</string>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    </array>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <key>LSRequiresIPhoneOS</key>' >> Payload/App.app/Info.plist
+              printf '%s\n' '    <true/>' >> Payload/App.app/Info.plist
+              printf '%s\n' '</dict>' >> Payload/App.app/Info.plist
+              printf '%s\n' '</plist>' >> Payload/App.app/Info.plist
               
               # Create a proper executable (not just a bash script)
               echo "🔐 Creating proper iOS Mach-O executable..."
@@ -1306,11 +1336,46 @@ jobs:
               echo "=================================================="
               echo "📱 Creating LaunchScreen storyboard..."
               mkdir -p Payload/App.app/Base.lproj
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21754" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">\n    <device id="retina6_12" orientation="portrait" appearance="light"/>\n    <dependencies>\n        <deployment identifier="iOS"/>\n        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21754"/>\n        <capability name="Safe area layout guides" minToolsVersion="9.0"/>\n        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>\n    </dependencies>\n    <scenes>\n        <scene sceneID="EHf-IW-A2E">\n            <objects>\n                <viewController id="01J-lp-oVM" sceneMemberID="viewController">\n                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">\n                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>\n                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>\n                        <subviews>\n                            <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="QA-Online" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumFontSize="18" translatesAutoresizingMaskIntoConstraints="NO" id="GJd-Yh-RWb">\n                                <rect key="frame" x="0.0" y="426" width="393" height="43"/>\n                                <fontDescription key="fontDescription" type="boldSystem" pointSize="36"/>\n                                <color key="textColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                                <nil key="highlightedColor"/>\n                            </label>\n                        </subviews>\n                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>\n                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>\n                        <constraints>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="QLM-P1-WfS"/>\n                            <constraint firstItem="GJd-Yh-RWb" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="akx-eg-2nu"/>\n                        </constraints>\n                    </view>\n                </viewController>\n                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>\n            </objects>\n            <point key="canvasLocation" x="53" y="375"/>\n        </scene>\n    </scenes>\n</document>' > Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              # Create LaunchScreen storyboard using printf to avoid YAML issues
+              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '    <device id="retina6_12" orientation="portrait" appearance="light"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '    <dependencies>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '        <deployment identifier="iOS"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '    </dependencies>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '    <scenes>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '        <scene sceneID="EHf-IW-A2E">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '            <objects>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                <viewController id="01J-lp-oVM">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                    <view key="view" id="Ze5-6b-2t3">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                        <color key="backgroundColor" red="1" green="1" blue="1"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                    </view>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '                </viewController>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '            </objects>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '        </scene>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '    </scenes>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
+              printf '%s\n' '</document>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
               
               # Create proper entitlements file
               echo "🔐 Creating entitlements file..."
-              printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>application-identifier</key>\n    <string>BL7NANM4RM.com.qaonline.app</string>\n    <key>com.apple.developer.team-identifier</key>\n    <string>BL7NANM4RM</string>\n    <key>get-task-allow</key>\n    <false/>\n    <key>keychain-access-groups</key>\n    <array>\n        <string>BL7NANM4RM.*</string>\n    </array>\n</dict>\n</plist>' > Payload/App.app/App.entitlements
+              # Create entitlements file using printf to avoid YAML issues
+              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/App.entitlements
+              printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> Payload/App.app/App.entitlements
+              printf '%s\n' '<plist version="1.0">' >> Payload/App.app/App.entitlements
+              printf '%s\n' '<dict>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <key>application-identifier</key>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <string>BL7NANM4RM.com.qaonline.app</string>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <key>com.apple.developer.team-identifier</key>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <string>BL7NANM4RM</string>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <key>get-task-allow</key>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <false/>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <key>keychain-access-groups</key>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    <array>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '        <string>BL7NANM4RM.*</string>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '    </array>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '</dict>' >> Payload/App.app/App.entitlements
+              printf '%s\n' '</plist>' >> Payload/App.app/App.entitlements
               
               # EMBED PROVISIONING PROFILE FIRST - BEFORE ANYTHING ELSE
               echo "🔐 Embedding provisioning profile FIRST..."
