@@ -70,6 +70,30 @@ jobs:
             echo "🔐 Configuring keychain access for codesign..."
             security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain || echo "Partition list setup completed"
             
+            # Setup Apple Developer account authentication for Xcode
+            echo "🔐 Setting up Apple Developer account authentication..."
+            mkdir -p ~/.appstoreconnect/private_keys
+            cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
+            
+            # Create Xcode configuration for Apple Developer account
+            mkdir -p ~/Library/Developer/Xcode/UserData
+            echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "<plist version=\"1.0\">" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "<dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "    <key>DevelopmentTeams</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "    <dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "        <key>$APPLE_TEAM_ID</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "        <dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "            <key>TeamID</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "            <string>$APPLE_TEAM_ID</string>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "            <key>TeamName</key>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "            <string>QA-Online</string>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "        </dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "    </dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "</dict>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            echo "</plist>" >> ~/Library/Developer/Xcode/UserData/IDEDevelopmentTeams.plist
+            
             # Install certificates
             echo "🔐 Installing certificates..."
             if [ -f "auto_distribution.cer" ]; then
