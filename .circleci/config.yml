@@ -659,24 +659,28 @@ jobs:
                   echo "✅ Successfully extracted existing signed IPA"
                   REAL_IPA_CREATED=true
                   FINAL_IPA="App.ipa"
+                  BUILD_EXIT_CODE=0
                 else
                   echo "❌ Failed to extract App.ipa from signed-ipa.zip"
                   cd ios/App
+                  REAL_IPA_CREATED=false
                 fi
               else
                 echo "⚠️ No existing signed IPA found, attempting to build new one..."
+                REAL_IPA_CREATED=false
+                
                 # Try to build archive with better error handling
                 echo "🔨 Creating archive for real iOS app..."
                 echo "🔍 Running xcodebuild archive command..."
               
-              # First check if the project is properly set up
-              echo "🔍 Checking Xcode project structure..."
-              if [ ! -f "App.xcworkspace/contents.xcworkspacedata" ]; then
-                echo "❌ Workspace file missing or corrupted"
-                cd ../..
-                CREATE_TEST_IPA=true
-              else
-                echo "✅ Workspace file exists"
+                # First check if the project is properly set up
+                echo "🔍 Checking Xcode project structure..."
+                if [ ! -f "App.xcworkspace/contents.xcworkspacedata" ]; then
+                  echo "❌ Workspace file missing or corrupted"
+                  cd ../..
+                  CREATE_TEST_IPA=true
+                else
+                  echo "✅ Workspace file exists"
                 
                 # Check if scheme exists
                 if [ ! -f "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme" ]; then
@@ -754,7 +758,8 @@ jobs:
                 
                 echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
               fi
-            fi  # Close the if [ -f "../../signed-ipa.zip" ] statement
+                fi  # Close the workspace check
+              fi  # Close the if [ -f "../../signed-ipa.zip" ] statement
             
             # Initialize BUILD_EXIT_CODE if not set
             if [ -z "$BUILD_EXIT_CODE" ]; then
