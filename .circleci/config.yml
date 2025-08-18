@@ -247,15 +247,53 @@ jobs:
               
               # CRITICAL: Sign main app with proper certificate chain and provisioning profile
               echo "🔐 Signing main app with Apple Distribution certificate..."
+              
+              # Ensure we have the full certificate chain available
+              echo "🔍 Verifying certificate chain..."
+              security find-certificate -a -c "Apple Distribution" build.keychain | head -5
+              
+              # Sign with explicit certificate chain and Apple's recommended approach
               if [ -f "app_entitlements.plist" ]; then
-                echo "🔐 Signing main app with entitlements..."
-                # Use the exact same signing approach that works for frameworks
-                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose --deep Payload/App.app/ 2>&1; then
-                  echo "✅ Main app bundle signed successfully with entitlements"
+                echo "🔐 Signing main app with entitlements and full certificate chain..."
+                # Use Apple's recommended signing approach for App Store distribution
+                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose --deep --timestamp --options=runtime Payload/App.app/ 2>&1; then
+                  echo "✅ Main app bundle signed successfully with entitlements and runtime options"
                 else
-                  echo "❌ Failed to sign main app with entitlements, trying without..."
+                  echo "❌ Failed to sign with runtime options, trying standard approach..."
+                  if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose --deep Payload/App.app/ 2>&1; then
+                    echo "✅ Main app bundle signed successfully with entitlements"
+                  else
+                    echo "❌ Failed to sign main app with entitlements, trying without..."
+                    if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep Payload/App.app/ 2>&1; then
+                      echo "✅ Main app bundle signed successfully without entitlements"
+                    else
+                      echo "❌ Failed to sign main app bundle with primary method"
+                      echo "🔍 Attempting with explicit keychain parameter..."
+                      
+                      # Try alternative signing approach for main app
+                      if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose --deep Payload/App.app/ 2>&1; then
+                        echo "✅ Main app bundle signed with alternative method"
+                      else
+                        echo "❌ All signing attempts failed for main app bundle"
+                        echo "🔍 Checking app bundle permissions and structure..."
+                        ls -la Payload/App.app/
+                        echo "📋 Available identities:"
+                        security find-identity -v -p codesigning build.keychain
+                        echo "🔍 Last codesign error output above"
+                        exit 1
+                      fi
+                    fi
+                  fi
+                fi
+              else
+                # No entitlements available, sign without them
+                echo "🔐 Signing main app without entitlements..."
+                if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep --timestamp --options=runtime Payload/App.app/ 2>&1; then
+                  echo "✅ Main app bundle signed successfully with runtime options"
+                else
+                  echo "❌ Failed to sign with runtime options, trying standard approach..."
                   if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep Payload/App.app/ 2>&1; then
-                    echo "✅ Main app bundle signed successfully without entitlements"
+                    echo "✅ Main app bundle signed successfully"
                   else
                     echo "❌ Failed to sign main app bundle with primary method"
                     echo "🔍 Attempting with explicit keychain parameter..."
@@ -272,28 +310,6 @@ jobs:
                       echo "🔍 Last codesign error output above"
                       exit 1
                     fi
-                  fi
-                fi
-              else
-                # No entitlements available, sign without them
-                echo "🔐 Signing main app without entitlements..."
-                if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep Payload/App.app/ 2>&1; then
-                  echo "✅ Main app bundle signed successfully"
-                else
-                  echo "❌ Failed to sign main app bundle with primary method"
-                  echo "🔍 Attempting with explicit keychain parameter..."
-                  
-                  # Try alternative signing approach for main app
-                  if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose --deep Payload/App.app/ 2>&1; then
-                    echo "✅ Main app bundle signed with alternative method"
-                  else
-                    echo "❌ All signing attempts failed for main app bundle"
-                    echo "🔍 Checking app bundle permissions and structure..."
-                    ls -la Payload/App.app/
-                    echo "📋 Available identities:"
-                    security find-identity -v -p codesigning build.keychain
-                    echo "🔍 Last codesign error output above"
-                    exit 1
                   fi
                 fi
               fi
@@ -315,6 +331,22 @@ jobs:
               
               if codesign --verify Payload/App.app/ 2>/dev/null; then
                 echo "✅ Main app signature verified"
+                
+                # CRITICAL: Additional verification for App Store compatibility
+                echo "🔍 Performing App Store signature validation..."
+                if codesign --verify --verbose=4 Payload/App.app/ 2>&1 | grep -q "valid on disk"; then
+                  echo "✅ App Store signature validation passed"
+                else
+                  echo "⚠️  App Store signature validation warning - continuing anyway"
+                fi
+                
+                # Verify the signature contains the expected certificate
+                echo "🔍 Verifying signature certificate..."
+                if codesign -d --entitlements :- Payload/App.app/ 2>/dev/null | grep -q "com.qaonline.app"; then
+                  echo "✅ Signature contains correct bundle identifier"
+                else
+                  echo "⚠️  Signature bundle identifier verification warning"
+                fi
               else
                 echo "❌ Main app signature verification failed"
                 exit 1
