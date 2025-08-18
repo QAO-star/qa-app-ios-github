@@ -11,7 +11,7 @@ workflows:
 jobs:
   simple_sign_and_upload:
     macos:
-      xcode: "15.3.0"
+      xcode: "16.0.0"
     resource_class: macos.m1.medium.gen1
     
     steps:
@@ -140,24 +140,62 @@ jobs:
                     # Ensure keychain is accessible for this signing operation
                     security unlock-keychain -p "" build.keychain
                     
-                    # Try primary signing approach
-                    if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
-                      echo "  ✅ $(basename "$framework") signed successfully"
-                    else
-                      echo "  ❌ Failed to sign $(basename "$framework") with primary method"
-                      echo "  🔍 Attempting with explicit keychain parameter..."
-                      
-                      # Try alternative signing approach with explicit keychain
-                      if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
-                        echo "  ✅ $(basename "$framework") signed with alternative method"
+                    # Extract entitlements from provisioning profile for frameworks
+                    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                      echo "  📄 Extracting entitlements from provisioning profile..."
+                      security cms -D -i QAOnlineAppStoreProfile.mobileprovision > profile.plist 2>/dev/null || echo "Could not extract profile"
+                      if [ -f "profile.plist" ]; then
+                        /usr/libexec/PlistBuddy -x -c "Print :Entitlements" profile.plist > framework_entitlements.plist 2>/dev/null || echo "No entitlements in profile"
+                      fi
+                    fi
+                    
+                    # Try primary signing approach with entitlements
+                    if [ -f "framework_entitlements.plist" ]; then
+                      echo "  🔐 Signing with entitlements..."
+                      if codesign --force --sign "$SIGNING_IDENTITY" --entitlements framework_entitlements.plist --verbose "$framework" 2>&1; then
+                        echo "  ✅ $(basename "$framework") signed successfully with entitlements"
                       else
-                        echo "  ❌ All signing attempts failed for $(basename "$framework")"
-                        echo "  🔍 Checking framework permissions and structure..."
-                        ls -la "$framework"
-                        echo "  📋 Available identities:"
-                        security find-identity -v -p codesigning build.keychain
-                        echo "  🔍 Last codesign error output above"
-                        exit 1
+                        echo "  ❌ Failed to sign $(basename "$framework") with entitlements, trying without..."
+                        if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
+                          echo "  ✅ $(basename "$framework") signed successfully without entitlements"
+                        else
+                          echo "  ❌ Failed to sign $(basename "$framework") with primary method"
+                          echo "  🔍 Attempting with explicit keychain parameter..."
+                          
+                          # Try alternative signing approach with explicit keychain
+                          if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
+                            echo "  ✅ $(basename "$framework") signed with alternative method"
+                          else
+                            echo "  ❌ All signing attempts failed for $(basename "$framework")"
+                            echo "  🔍 Checking framework permissions and structure..."
+                            ls -la "$framework"
+                            echo "  📋 Available identities:"
+                            security find-identity -v -p codesigning build.keychain
+                            echo "  🔍 Last codesign error output above"
+                            exit 1
+                          fi
+                        fi
+                      fi
+                    else
+                      # No entitlements available, sign without them
+                      if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
+                        echo "  ✅ $(basename "$framework") signed successfully"
+                      else
+                        echo "  ❌ Failed to sign $(basename "$framework") with primary method"
+                        echo "  🔍 Attempting with explicit keychain parameter..."
+                        
+                        # Try alternative signing approach with explicit keychain
+                        if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
+                          echo "  ✅ $(basename "$framework") signed with alternative method"
+                        else
+                          echo "  ❌ All signing attempts failed for $(basename "$framework")"
+                          echo "  🔍 Checking framework permissions and structure..."
+                          ls -la "$framework"
+                          echo "  📋 Available identities:"
+                          security find-identity -v -p codesigning build.keychain
+                          echo "  🔍 Last codesign error output above"
+                          exit 1
+                        fi
                       fi
                     fi
                   fi
@@ -167,27 +205,76 @@ jobs:
                 echo "ℹ️  No frameworks directory found"
               fi
               
+              # Fix bundle ID collision in frameworks
+              echo "🔧 Fixing bundle ID collisions in frameworks..."
+              if [ -d "Payload/App.app/Frameworks" ]; then
+                for framework in Payload/App.app/Frameworks/*.framework; do
+                  if [ -d "$framework" ] && [ -f "$framework/Info.plist" ]; then
+                    FRAMEWORK_NAME=$(basename "$framework" .framework)
+                    echo "  🔧 Updating bundle ID for $FRAMEWORK_NAME..."
+                    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app.$FRAMEWORK_NAME" "$framework/Info.plist" 2>/dev/null || echo "  Could not update $FRAMEWORK_NAME bundle ID"
+                  fi
+                done
+              fi
+              
               # Now sign the main app bundle (must be done after frameworks)
-              echo "🔐 Signing main app bundle..."
+              echo "🔐 Signing main app bundle with entitlements..."
               security unlock-keychain -p "" build.keychain
               
-              if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
-                echo "✅ Main app bundle signed successfully"
-              else
-                echo "❌ Failed to sign main app bundle with primary method"
-                echo "🔍 Attempting with explicit keychain parameter..."
-                
-                # Try alternative signing approach for main app
-                if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
-                  echo "✅ Main app bundle signed with alternative method"
+              # Create main app entitlements from provisioning profile
+              if [ -f "profile.plist" ]; then
+                echo "📄 Creating main app entitlements..."
+                /usr/libexec/PlistBuddy -x -c "Print :Entitlements" profile.plist > app_entitlements.plist 2>/dev/null || echo "No entitlements in profile"
+              fi
+              
+              # Sign main app with entitlements
+              if [ -f "app_entitlements.plist" ]; then
+                echo "🔐 Signing main app with entitlements..."
+                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose Payload/App.app/ 2>&1; then
+                  echo "✅ Main app bundle signed successfully with entitlements"
                 else
-                  echo "❌ All signing attempts failed for main app bundle"
-                  echo "🔍 Checking app bundle permissions and structure..."
-                  ls -la Payload/App.app/
-                  echo "📋 Available identities:"
-                  security find-identity -v -p codesigning build.keychain
-                  echo "🔍 Last codesign error output above"
-                  exit 1
+                  echo "❌ Failed to sign main app with entitlements, trying without..."
+                  if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
+                    echo "✅ Main app bundle signed successfully without entitlements"
+                  else
+                    echo "❌ Failed to sign main app bundle with primary method"
+                    echo "🔍 Attempting with explicit keychain parameter..."
+                    
+                    # Try alternative signing approach for main app
+                    if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
+                      echo "✅ Main app bundle signed with alternative method"
+                    else
+                      echo "❌ All signing attempts failed for main app bundle"
+                      echo "🔍 Checking app bundle permissions and structure..."
+                      ls -la Payload/App.app/
+                      echo "📋 Available identities:"
+                      security find-identity -v -p codesigning build.keychain
+                      echo "🔍 Last codesign error output above"
+                      exit 1
+                    fi
+                  fi
+                fi
+              else
+                # No entitlements available, sign without them
+                echo "🔐 Signing main app without entitlements..."
+                if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
+                  echo "✅ Main app bundle signed successfully"
+                else
+                  echo "❌ Failed to sign main app bundle with primary method"
+                  echo "🔍 Attempting with explicit keychain parameter..."
+                  
+                  # Try alternative signing approach for main app
+                  if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
+                    echo "✅ Main app bundle signed with alternative method"
+                  else
+                    echo "❌ All signing attempts failed for main app bundle"
+                    echo "🔍 Checking app bundle permissions and structure..."
+                    ls -la Payload/App.app/
+                    echo "📋 Available identities:"
+                    security find-identity -v -p codesigning build.keychain
+                    echo "🔍 Last codesign error output above"
+                    exit 1
+                  fi
                 fi
               fi
               
