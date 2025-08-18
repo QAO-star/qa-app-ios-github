@@ -780,7 +780,7 @@ jobs:
               echo "✅ Using existing signed IPA - skipping build process"
             else
               if [ $BUILD_EXIT_CODE -eq 0 ]; then
-              echo "✅ Archive created successfully for real iOS app"
+                echo "✅ Archive created successfully for real iOS app"
               
               # Extract IPA from archive
               echo "📦 Extracting IPA from real iOS app archive..."
@@ -961,8 +961,9 @@ jobs:
                 REAL_IPA_CREATED=false
               fi
             fi  # Close the if [ $BUILD_EXIT_CODE -eq 0 ] block
-            else
-              if [ "$REAL_IPA_CREATED" = "true" ]; then
+            fi  # Close the main if [ "$REAL_IPA_CREATED" = "true" ] block
+            
+            if [ "$REAL_IPA_CREATED" = "true" ]; then
                 echo "✅ Using existing signed IPA - build process not needed"
               else
                 echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
