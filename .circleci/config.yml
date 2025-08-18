@@ -529,8 +529,10 @@ jobs:
               defaults write com.apple.dt.Xcode IDEProvisioningStyle -string "Automatic"
               
               # Set up keychain for automatic signing
-              # Create a temporary keychain for the build
-              security create-keychain -p "" build.keychain
+              # Create a temporary keychain for the build (handle existing keychain)
+              if ! security list-keychains | grep -q "build.keychain"; then
+                security create-keychain -p "" build.keychain
+              fi
               security list-keychains -s build.keychain
               security default-keychain -s build.keychain
               security unlock-keychain -p "" build.keychain
