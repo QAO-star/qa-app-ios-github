@@ -1826,4 +1826,4 @@ workflows:
       - simple_sign_and_upload:
           filters:
             branches:
-              only: main
+              only: [main, simple-sign]
