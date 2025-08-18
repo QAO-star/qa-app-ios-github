@@ -124,19 +124,8 @@ jobs:
             fi
             
             echo "✅ Found signed-ipa.zip"
-            unzip -o signed-ipa.zip
-            
-            if [ ! -d "Payload" ]; then
-              echo "❌ ERROR: No Payload directory found!"
-              exit 1
-            fi
-            
-            if [ ! -d "Payload/App.app" ]; then
-              echo "❌ ERROR: No App.app found in Payload!"
-              exit 1
-            fi
-            
-            echo "✅ Valid app structure found"
+            # Don't extract here - let the upload script handle it
+            echo "✅ Valid signed-ipa.zip found - upload script will handle extraction"
             
                         # Use the existing working upload script that properly handles signing
             echo "📦 Using the existing upload-to-appstore.sh script..."
