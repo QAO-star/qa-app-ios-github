@@ -816,43 +816,44 @@ jobs:
                     if [ $EXPORT_EXIT_CODE -ne 0 ]; then
                       echo "❌ Export failed with output:"
                       echo "$EXPORT_OUTPUT"
-                    echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
-                    
-                    # Extract the App.app directly from the archive
-                    echo "🔍 Looking for App.app in archive..."
-                    find App.xcarchive -name "*.app" -type d || echo "No .app found in archive"
-                    
-                    APP_PATH=$(find App.xcarchive -name "App.app" -type d | head -1)
-                    if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
-                      echo "✅ Found app at: $APP_PATH"
-                      echo "🔧 Creating IPA manually from archive..."
+                      echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
                       
-                      # Clean any existing Payload
-                      rm -rf Payload/
-                      mkdir -p Payload
+                      # Extract the App.app directly from the archive
+                      echo "🔍 Looking for App.app in archive..."
+                      find App.xcarchive -name "*.app" -type d || echo "No .app found in archive"
                       
-                      # Copy the app
-                      cp -R "$APP_PATH" Payload/
-                      echo "✅ Copied app to Payload directory"
-                      
-                      # List contents to verify
-                      echo "🔍 Payload contents:"
-                      ls -la Payload/
-                      ls -la Payload/App.app/ | head -10
-                      
-                      # Create IPA
-                      zip -r App.ipa Payload/
-                      echo "✅ Created IPA manually from archive contents"
-                      
-                      if [ -f "App.ipa" ]; then
-                        echo "✅ IPA file created successfully: $(ls -la App.ipa)"
+                      APP_PATH=$(find App.xcarchive -name "App.app" -type d | head -1)
+                      if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
+                        echo "✅ Found app at: $APP_PATH"
+                        echo "🔧 Creating IPA manually from archive..."
+                        
+                        # Clean any existing Payload
+                        rm -rf Payload/
+                        mkdir -p Payload
+                        
+                        # Copy the app
+                        cp -R "$APP_PATH" Payload/
+                        echo "✅ Copied app to Payload directory"
+                        
+                        # List contents to verify
+                        echo "🔍 Payload contents:"
+                        ls -la Payload/
+                        ls -la Payload/App.app/ | head -10
+                        
+                        # Create IPA
+                        zip -r App.ipa Payload/
+                        echo "✅ Created IPA manually from archive contents"
+                        
+                        if [ -f "App.ipa" ]; then
+                          echo "✅ IPA file created successfully: $(ls -la App.ipa)"
+                        else
+                          echo "❌ Failed to create IPA file"
+                        fi
                       else
-                        echo "❌ Failed to create IPA file"
-                    fi
-                  else
-                      echo "❌ Could not find App.app in archive"
-                      echo "🔍 Complete archive structure:"
-                      find App.xcarchive -type f | head -20
+                        echo "❌ Could not find App.app in archive"
+                        echo "🔍 Complete archive structure:"
+                        find App.xcarchive -type f | head -20
+                      fi
                     fi
                     
                     echo "🔨 Skipping problematic xcodebuild export, using direct manual extraction..."
