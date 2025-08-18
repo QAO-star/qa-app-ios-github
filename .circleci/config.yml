@@ -123,7 +123,12 @@ jobs:
             unzip App-unsigned.ipa
             rm App-unsigned.ipa
             
-            echo "✅ Fresh unsigned IPA created and extracted"
+            # Fix the directory structure - move App.app into Payload directory
+            echo "🔧 Fixing directory structure..."
+            mkdir -p Payload
+            mv App.app Payload/
+            
+            echo "✅ Fresh unsigned IPA created and extracted with correct structure"
             
             # Install provisioning profile in app bundle
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
