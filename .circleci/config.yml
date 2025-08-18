@@ -151,9 +151,8 @@ jobs:
             
             # Create a new IPA from the existing signed app bundle
             echo "📦 Creating IPA from existing signed app bundle..."
-            cd Payload
-            zip -r ../App.ipa .
-            cd ..
+            # Create the IPA with proper structure: App.ipa should contain Payload/App.app
+            zip -r App.ipa Payload/
             
             echo "✅ Successfully created IPA from existing signed app bundle"
             
