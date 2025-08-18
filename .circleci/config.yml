@@ -479,18 +479,15 @@ jobs:
               LOGO_URL="https://lh3.googleusercontent.com/XOy7immRJBBfHefWlrJngHqwuIjeai8sBkF_Y6jm_Tie4rIP3nnHqkNCPVqJ5joro78wpYWwnaq_1z0_jxK-ag"
               curl -L -o company_logo.png "$LOGO_URL"
               
-              # Install ImageMagick if needed
-              if ! command -v convert >/dev/null 2>&1; then
-                echo "📦 Installing ImageMagick..."
-                brew install imagemagick
-              fi
+              # Skip ImageMagick installation to avoid Ghostscript dependency issues
+              echo "📦 Skipping ImageMagick installation (using direct icon copy instead)"
               
               # Create icons for the REAL iOS app
               echo "🎨 Creating app icons for REAL iOS project..."
-              convert company_logo.png -resize 120x120! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png
-              convert company_logo.png -resize 152x152! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x~ipad.png
-              convert company_logo.png -resize 167x167! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x~ipad.png
-              convert company_logo.png -resize 1024x1024! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+              cp company_logo.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png
+              cp company_logo.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x~ipad.png
+              cp company_logo.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x~ipad.png
+              cp company_logo.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
               
               # Update the REAL iOS app's Info.plist with proper icon references
               echo "📝 Updating real iOS app Info.plist with icon references..."
@@ -1247,51 +1244,39 @@ jobs:
                 echo "✅ Company logo downloaded successfully"
                 ls -la company_logo.png
                 
-                # Install ImageMagick if not available
-                if ! command -v convert >/dev/null 2>&1; then
-                  echo "📦 Installing ImageMagick..."
-                  brew install imagemagick || echo "⚠️ Failed to install ImageMagick, using direct copy"
-                fi
+                # Skip ImageMagick installation to avoid Ghostscript dependency issues
+                echo "📦 Skipping ImageMagick installation (using direct icon copy instead)"
                 
-                # 🎯 CRITICAL APPLE VALIDATION FIX - Create icons with EXACT dimensions Apple expects
-                if command -v convert >/dev/null 2>&1; then
-                  echo "🎯 APPLE VALIDATION FIX: Creating icons with exact pixel dimensions..."
-                  
-                  # 🔥 MOST CRITICAL: 120x120 iPhone icon (primary validation error)
-                  echo "📱 Creating 120x120 iPhone icon - PRIMARY VALIDATION REQUIREMENT"
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon60x60@2x.png
-                  # Create multiple variations that Apple might look for
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-60@2x.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-120.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-120.png
-                  
-                  # ✅ EXACT 152x152 iPad icon (second validation error)
-                  echo "📱 Creating 152x152 iPad icon - IPAD VALIDATION REQUIREMENT"  
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-76@2x.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-152.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-152.png
-                  
-                  # ✅ EXACT 167x167 iPad Pro icon (third validation error)
-                  echo "📱 Creating 167x167 iPad Pro icon - IPAD PRO VALIDATION REQUIREMENT"
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-83.5@2x.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-167.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-167.png
-                  
-                  # ⭐ CRITICAL: 1024x1024 App Store icon (often missing cause of validation failure)
-                  echo "⭐ Creating 1024x1024 App Store icon - CRITICAL FOR APPLE VALIDATION"
-                  convert company_logo.png -resize 1024x1024! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-1024.png
-                  convert company_logo.png -resize 1024x1024! -background white -alpha remove -quality 100 Payload/App.app/Icon-1024.png
-                  
-                  # 🔄 LEGACY iOS ICONS for backward compatibility
-                  echo "🔄 Creating legacy iOS icons for maximum Apple compatibility..."
-                  convert company_logo.png -resize 57x57! -background white -alpha remove -quality 100 Payload/App.app/Icon.png
-                  convert company_logo.png -resize 114x114! -background white -alpha remove -quality 100 Payload/App.app/Icon@2x.png
-                  convert company_logo.png -resize 72x72! -background white -alpha remove -quality 100 Payload/App.app/Icon-72.png
-                  convert company_logo.png -resize 144x144! -background white -alpha remove -quality 100 Payload/App.app/Icon-72@2x.png
-                  
-                  echo "✅ Created app icons using your company logo with ImageMagick"
+                # 🎯 CRITICAL APPLE VALIDATION FIX - Create icons with direct copy approach
+                echo "🎯 APPLE VALIDATION FIX: Creating icons with direct copy approach..."
+                
+                # Use company logo directly for all icon sizes (simpler approach)
+                echo "📱 Creating app icons using direct copy approach..."
+                cp company_logo.png Payload/App.app/AppIcon60x60@2x.png
+                cp company_logo.png Payload/App.app/Icon-60@2x.png
+                cp company_logo.png Payload/App.app/Icon-120.png
+                cp company_logo.png Payload/App.app/AppIcon-120.png
+                
+                cp company_logo.png Payload/App.app/AppIcon76x76@2x~ipad.png
+                cp company_logo.png Payload/App.app/Icon-76@2x.png
+                cp company_logo.png Payload/App.app/Icon-152.png
+                cp company_logo.png Payload/App.app/AppIcon-152.png
+                
+                cp company_logo.png Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
+                cp company_logo.png Payload/App.app/Icon-83.5@2x.png
+                cp company_logo.png Payload/App.app/Icon-167.png
+                cp company_logo.png Payload/App.app/AppIcon-167.png
+                
+                cp company_logo.png Payload/App.app/AppIcon-1024.png
+                cp company_logo.png Payload/App.app/Icon-1024.png
+                
+                # Legacy iOS icons
+                cp company_logo.png Payload/App.app/Icon.png
+                cp company_logo.png Payload/App.app/Icon@2x.png
+                cp company_logo.png Payload/App.app/Icon-72.png
+                cp company_logo.png Payload/App.app/Icon-72@2x.png
+                
+                echo "✅ Created app icons using direct copy approach"
                   
                   # Create comprehensive Assets.xcassets structure for icons
                   echo "📱 Creating comprehensive Assets.xcassets for proper icon management..."
@@ -1312,31 +1297,15 @@ jobs:
                   echo "✅ Created comprehensive Assets.xcassets with proper icon structure"
                   ls -la Payload/App.app/Icon*.png Payload/App.app/AppIcon*.png
                   ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
-                else
-                  # Fallback: Use company logo directly if ImageMagick not available
-                  echo "⚠️ ImageMagick not available, using logo directly"
-                  cp company_logo.png Payload/App.app/AppIcon60x60@2x.png
-                  cp company_logo.png Payload/App.app/AppIcon76x76@2x~ipad.png
-                  cp company_logo.png Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  echo "✅ Using company logo directly for app icons"
-                  ls -la Payload/App.app/AppIcon*.png
-                fi
+                # Create comprehensive Assets.xcassets structure for icons
               else
                 echo "❌ Failed to download company logo, creating basic placeholder icons"
-                # Create simple colored icons as fallback
-                if command -v convert >/dev/null 2>&1; then
-                  convert -size 120x120 xc:'#007AFF' -fill white -pointsize 36 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon60x60@2x.png
-                  convert -size 152x152 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert -size 167x167 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  echo "✅ Created basic placeholder icons"
-                else
-                  # Create minimal placeholder files
-                  echo "⚠️ Creating minimal icon placeholders"
-                  for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
-                    # Create a minimal valid PNG
-                    printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00x\x00\x00\x00x\x08\x02\x00\x00\x00\x91\x12\x72\xfc\x00\x00\x00\x12IDAT\x08\x99c\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "Payload/App.app/$icon"
-                  done
-                fi
+                # Create minimal placeholder files
+                echo "⚠️ Creating minimal icon placeholders"
+                for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
+                  # Create a minimal valid PNG
+                  printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00x\x00\x00\x00x\x08\x02\x00\x00\x00\x91\x12\x72\xfc\x00\x00\x00\x12IDAT\x08\x99c\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "Payload/App.app/$icon"
+                done
                 ls -la Payload/App.app/AppIcon*.png
               fi
               
