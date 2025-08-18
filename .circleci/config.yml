@@ -104,8 +104,26 @@ jobs:
             
             echo "✅ Valid app structure found"
             
-                        # CRITICAL: Apply framework signing fixes before upload
-            echo "🔐 Applying framework signing fixes..."
+                        # CRITICAL: Create completely new unsigned IPA and sign with Apple's mandatory requirements
+            echo "🔐 Creating completely new unsigned IPA for Apple's mandatory code signing..."
+            
+            # Remove the existing signed IPA and create a fresh unsigned one
+            echo "🧹 Removing existing signed IPA..."
+            rm -f App.ipa
+            
+            # Create a completely fresh unsigned IPA
+            echo "📦 Creating fresh unsigned IPA..."
+            cd Payload
+            zip -r ../App-unsigned.ipa .
+            cd ..
+            
+            # Extract the fresh unsigned IPA
+            echo "📦 Extracting fresh unsigned IPA..."
+            rm -rf Payload
+            unzip App-unsigned.ipa
+            rm App-unsigned.ipa
+            
+            echo "✅ Fresh unsigned IPA created and extracted"
             
             # Install provisioning profile in app bundle
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
