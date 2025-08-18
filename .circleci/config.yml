@@ -754,8 +754,14 @@ jobs:
                 
                 echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
               fi
-              
-              echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
+            fi  # Close the if [ -f "../../signed-ipa.zip" ] statement
+            
+            # Initialize BUILD_EXIT_CODE if not set
+            if [ -z "$BUILD_EXIT_CODE" ]; then
+              BUILD_EXIT_CODE=0
+            fi
+            
+            echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
               
               if [ "$REAL_IPA_CREATED" = "true" ]; then
                 echo "✅ Using existing signed IPA - skipping build process"
