@@ -69,11 +69,20 @@ jobs:
             echo "🔍 Available signing identities:"
             security find-identity -v -p codesigning build.keychain
             
-            # Extract and prepare IPA
+            # Extract and prepare IPA with proper framework signing
             echo "📦 Preparing IPA from signed archive..."
             if [ ! -f "signed-ipa.zip" ]; then
               echo "❌ ERROR: signed-ipa.zip not found!"
-              exit 1
+              echo "🔧 Attempting to use upload-to-appstore.sh script instead..."
+              if [ -f "upload-to-appstore.sh" ]; then
+                echo "✅ Found upload-to-appstore.sh, delegating to it..."
+                chmod +x upload-to-appstore.sh
+                ./upload-to-appstore.sh
+                exit $?
+              else
+                echo "❌ No upload script found either!"
+                exit 1
+              fi
             fi
             
             echo "✅ Found signed-ipa.zip"
@@ -90,6 +99,84 @@ jobs:
             fi
             
             echo "✅ Valid app structure found"
+            
+            # CRITICAL: Apply framework signing fixes before upload
+            echo "🔐 Applying framework signing fixes..."
+            
+            # Install provisioning profile in app bundle
+            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+              echo "📄 Installing provisioning profile in app bundle..."
+              cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
+              echo "✅ Provisioning profile installed in app bundle"
+            fi
+            
+            # Find signing identity
+            SIGNING_IDENTITY=""
+            if security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -q "Apple Distribution"; then
+              SIGNING_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | cut -d'"' -f2)
+            elif security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -q "iPhone Distribution"; then
+              SIGNING_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "iPhone Distribution" | head -1 | cut -d'"' -f2)
+            fi
+            
+            if [ -n "$SIGNING_IDENTITY" ]; then
+              echo "✅ Found signing identity: $SIGNING_IDENTITY"
+              
+              # Sign frameworks first (CRITICAL for App Store Connect validation)
+              if [ -d "Payload/App.app/Frameworks" ]; then
+                echo "🔐 Signing frameworks individually..."
+                for framework in Payload/App.app/Frameworks/*.framework; do
+                  if [ -d "$framework" ]; then
+                    echo "  🔐 Signing $(basename "$framework")..."
+                    codesign --force --sign "$SIGNING_IDENTITY" "$framework"
+                    if [ $? -eq 0 ]; then
+                      echo "  ✅ $(basename "$framework") signed successfully"
+                    else
+                      echo "  ❌ Failed to sign $(basename "$framework")"
+                      exit 1
+                    fi
+                  fi
+                done
+                echo "✅ All frameworks signed successfully"
+              else
+                echo "ℹ️  No frameworks directory found"
+              fi
+              
+              # Now sign the main app bundle (must be done after frameworks)
+              echo "🔐 Signing main app bundle..."
+              codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/
+              if [ $? -eq 0 ]; then
+                echo "✅ Main app bundle signed successfully"
+              else
+                echo "❌ Failed to sign main app bundle"
+                exit 1
+              fi
+              
+              # Verify all signatures
+              echo "🔍 Verifying signatures..."
+              if [ -d "Payload/App.app/Frameworks" ]; then
+                for framework in Payload/App.app/Frameworks/*.framework; do
+                  if [ -d "$framework" ]; then
+                    if codesign --verify "$framework" 2>/dev/null; then
+                      echo "  ✅ $(basename "$framework") signature verified"
+                    else
+                      echo "  ❌ $(basename "$framework") signature verification failed"
+                      exit 1
+                    fi
+                  fi
+                done
+              fi
+              
+              if codesign --verify Payload/App.app/ 2>/dev/null; then
+                echo "✅ Main app signature verified"
+              else
+                echo "❌ Main app signature verification failed"
+                exit 1
+              fi
+              
+              echo "🎉 Framework signing fixes applied successfully!"
+            else
+              echo "⚠️  No signing identity found - using unsigned IPA (will likely fail at App Store)"
+            fi
             
             # Verify executable
             if [ -f "Payload/App.app/App" ]; then
