@@ -114,16 +114,25 @@ jobs:
             
             # Build and archive using Xcode's native process
             echo "📦 Building and archiving app using Xcode's native process..."
+            
+            # Sync Capacitor project first (required for proper iOS setup)
+            echo "🔄 Syncing Capacitor project..."
+            npx cap sync ios
+            
             cd ios/App
+            
+            # Install CocoaPods dependencies (required for Capacitor projects)
+            echo "📦 Installing CocoaPods dependencies..."
+            pod install --repo-update
             
             # Clean previous builds
             echo "🔧 Cleaning previous builds..."
-            xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
+            xcodebuild clean -project App.xcodeproj -scheme App -configuration Release
             
             # Build and create archive (Apple's recommended approach)
             echo "🔧 Building and creating archive..."
             xcodebuild archive \
-              -workspace App.xcworkspace \
+              -project App.xcodeproj \
               -scheme App \
               -configuration Release \
               -destination generic/platform=iOS \
