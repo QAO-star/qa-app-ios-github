@@ -113,13 +113,15 @@ jobs:
             
             echo "📱 Uploading IPA: $(ls -lh App.ipa)"
             
-            # Try fastlane first
+            # Create directory for API key (required by altool)
+            mkdir -p ~/.appstoreconnect/private_keys
+            cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
+            
+            # Try fastlane first with correct API key format
             echo "🚀 Attempting upload with Fastlane..."
             if fastlane run upload_to_app_store \
               ipa:"App.ipa" \
-              api_key_path:"AuthKey_${API_KEY_ID}.p8" \
-              api_key:"$API_KEY_ID" \
-              issuer_id:"6751101564" \
+              api_key:"{\"key_id\":\"$API_KEY_ID\",\"issuer_id\":\"6751101564\",\"key_filepath\":\"AuthKey_${API_KEY_ID}.p8\"}" \
               skip_waiting_for_build_processing:true \
               skip_metadata:true \
               skip_screenshots:true \
