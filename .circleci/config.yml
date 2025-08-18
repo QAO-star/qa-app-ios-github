@@ -137,20 +137,26 @@ jobs:
                   if [ -d "$framework" ]; then
                     echo "  🔐 Signing $(basename "$framework")..."
                     
-                    # Use timeout to prevent hanging
-                    if timeout 60 codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework"; then
+                    # Ensure keychain is accessible for this signing operation
+                    security unlock-keychain -p "" build.keychain
+                    
+                    # Try primary signing approach
+                    if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
                       echo "  ✅ $(basename "$framework") signed successfully"
                     else
-                      echo "  ❌ Failed to sign $(basename "$framework") (timeout or error)"
-                      echo "  🔍 Attempting with different codesign parameters..."
+                      echo "  ❌ Failed to sign $(basename "$framework") with primary method"
+                      echo "  🔍 Attempting with explicit keychain parameter..."
                       
-                      # Try alternative signing approach
-                      if timeout 60 codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain "$framework"; then
+                      # Try alternative signing approach with explicit keychain
+                      if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
                         echo "  ✅ $(basename "$framework") signed with alternative method"
                       else
                         echo "  ❌ All signing attempts failed for $(basename "$framework")"
+                        echo "  🔍 Checking framework permissions and structure..."
+                        ls -la "$framework"
                         echo "  📋 Available identities:"
                         security find-identity -v -p codesigning build.keychain
+                        echo "  🔍 Last codesign error output above"
                         exit 1
                       fi
                     fi
@@ -163,19 +169,24 @@ jobs:
               
               # Now sign the main app bundle (must be done after frameworks)
               echo "🔐 Signing main app bundle..."
-              if timeout 90 codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/; then
+              security unlock-keychain -p "" build.keychain
+              
+              if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
                 echo "✅ Main app bundle signed successfully"
               else
-                echo "❌ Failed to sign main app bundle (timeout or error)"
-                echo "🔍 Attempting with different codesign parameters..."
+                echo "❌ Failed to sign main app bundle with primary method"
+                echo "🔍 Attempting with explicit keychain parameter..."
                 
                 # Try alternative signing approach for main app
-                if timeout 90 codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain Payload/App.app/; then
+                if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
                   echo "✅ Main app bundle signed with alternative method"
                 else
                   echo "❌ All signing attempts failed for main app bundle"
+                  echo "🔍 Checking app bundle permissions and structure..."
+                  ls -la Payload/App.app/
                   echo "📋 Available identities:"
                   security find-identity -v -p codesigning build.keychain
+                  echo "🔍 Last codesign error output above"
                   exit 1
                 fi
               fi
