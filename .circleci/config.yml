@@ -649,9 +649,25 @@ jobs:
               echo "🔨 Building iOS app with App scheme..."
               xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
               
-              # Try to build archive with better error handling
-              echo "🔨 Creating archive for real iOS app..."
-              echo "🔍 Running xcodebuild archive command..."
+              # Check if we already have a signed IPA
+              echo "🔍 Checking for existing signed IPA..."
+              if [ -f "../../signed-ipa.zip" ]; then
+                echo "✅ Found existing signed IPA, using it instead of building"
+                cd ../..
+                unzip -o signed-ipa.zip
+                if [ -f "App.ipa" ]; then
+                  echo "✅ Successfully extracted existing signed IPA"
+                  REAL_IPA_CREATED=true
+                  FINAL_IPA="App.ipa"
+                else
+                  echo "❌ Failed to extract App.ipa from signed-ipa.zip"
+                  cd ios/App
+                fi
+              else
+                echo "⚠️ No existing signed IPA found, attempting to build new one..."
+                # Try to build archive with better error handling
+                echo "🔨 Creating archive for real iOS app..."
+                echo "🔍 Running xcodebuild archive command..."
               
               # First check if the project is properly set up
               echo "🔍 Checking Xcode project structure..."
@@ -741,7 +757,9 @@ jobs:
               
               echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
               
-              if [ $BUILD_EXIT_CODE -eq 0 ]; then
+              if [ "$REAL_IPA_CREATED" = "true" ]; then
+                echo "✅ Using existing signed IPA - skipping build process"
+              elif [ $BUILD_EXIT_CODE -eq 0 ]; then
                 echo "✅ Archive created successfully for real iOS app"
                 
                 # Extract IPA from archive
@@ -922,7 +940,10 @@ jobs:
                   REAL_IPA_CREATED=false
                 fi
               else
-                echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
+                if [ "$REAL_IPA_CREATED" = "true" ]; then
+                  echo "✅ Using existing signed IPA - build process not needed"
+                else
+                  echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
                 echo "🔧 STOPPING TEST IPA CREATION - FIXING REAL iOS BUILD INSTEAD"
                 echo "🔍 Checking if we can use existing app structure..."
                 
@@ -1161,6 +1182,15 @@ jobs:
                 echo "This requires manual inspection of the iOS project"
                 exit 1
               fi
+            fi
+            
+            # Check if we have a signed IPA to upload
+            if [ "$REAL_IPA_CREATED" = "true" ] || [ -f "App.ipa" ]; then
+              echo "✅ Real iOS app IPA ready for upload"
+              FINAL_IPA="App.ipa"
+            else
+              echo "❌ No signed IPA available for upload"
+              exit 1
             fi
             
             # 🚫 DISABLED: Test IPA creation section (was fallback)
