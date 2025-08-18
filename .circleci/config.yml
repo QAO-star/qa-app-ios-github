@@ -144,6 +144,11 @@ jobs:
             # The signed-ipa.zip was already extracted and contains a properly signed IPA
             # We'll use the existing Payload/App.app structure for upload
             
+            # Fix the version string to comply with Apple's requirements
+            echo "🔧 Fixing version string format..."
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.72" Payload/App.app/Info.plist
+            echo "✅ Version string fixed to: 1.0.72"
+            
             # Create a new IPA from the existing signed app bundle
             echo "📦 Creating IPA from existing signed app bundle..."
             cd Payload
