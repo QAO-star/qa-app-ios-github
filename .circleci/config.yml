@@ -104,327 +104,73 @@ jobs:
             
             echo "✅ Valid app structure found"
             
-                        # CRITICAL: Create completely new unsigned IPA and sign with Apple's mandatory requirements
-            echo "🔐 Creating completely new unsigned IPA for Apple's mandatory code signing..."
+                        # CRITICAL: Follow Apple's modern best practices for iOS app signing
+            echo "🔐 Following Apple's modern best practices for iOS app signing..."
             
-            # Remove the existing signed IPA and create a fresh unsigned one
-            echo "🧹 Removing existing signed IPA..."
+            # Remove existing artifacts
+            echo "🧹 Removing existing artifacts..."
             rm -f App.ipa
-            
-            # Create a completely fresh unsigned IPA
-            echo "📦 Creating fresh unsigned IPA..."
-            cd Payload
-            zip -r ../App-unsigned.ipa .
-            cd ..
-            
-            # Extract the fresh unsigned IPA
-            echo "📦 Extracting fresh unsigned IPA..."
             rm -rf Payload
-            unzip App-unsigned.ipa
-            rm App-unsigned.ipa
             
-            # Fix the directory structure - move App.app into Payload directory
-            echo "🔧 Fixing directory structure..."
-            mkdir -p Payload
-            mv App.app Payload/
+            # Build and archive using Xcode's native process
+            echo "📦 Building and archiving app using Xcode's native process..."
+            cd ios/App
             
-            echo "✅ Fresh unsigned IPA created and extracted with correct structure"
+            # Clean previous builds
+            echo "🔧 Cleaning previous builds..."
+            xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
             
-            # Install provisioning profile in app bundle
-            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-              echo "📄 Installing provisioning profile in app bundle..."
-              cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-              echo "✅ Provisioning profile installed in app bundle"
-              
-              # CRITICAL: Verify provisioning profile is properly embedded
-              echo "🔍 Verifying provisioning profile embedding..."
-              if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
-                echo "✅ Provisioning profile found in app bundle"
-                # Extract and verify the provisioning profile contents
-                security cms -D -i Payload/App.app/embedded.mobileprovision > embedded_profile.plist 2>/dev/null || echo "Could not extract embedded profile"
-                if [ -f "embedded_profile.plist" ]; then
-                  echo "📄 Embedded profile extracted successfully"
-                  # Verify the app ID matches
-                  EMBEDDED_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" embedded_profile.plist 2>/dev/null || echo "Could not read app ID")
-                  echo "🔍 Embedded profile app ID: $EMBEDDED_APP_ID"
-                fi
-              else
-                echo "❌ Provisioning profile not found in app bundle"
-                exit 1
-              fi
-            fi
+            # Build and create archive (Apple's recommended approach)
+            echo "🔧 Building and creating archive..."
+            xcodebuild archive \
+              -workspace App.xcworkspace \
+              -scheme App \
+              -configuration Release \
+              -destination generic/platform=iOS \
+              -archivePath App.xcarchive \
+              DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+              PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app" \
+              CODE_SIGN_STYLE="Automatic" \
+              CURRENT_PROJECT_VERSION="38" \
+              MARKETING_VERSION="1.0.72"
             
-            # CRITICAL: Remove any existing signatures before re-signing
-            echo "🧹 Removing existing signatures for clean re-signing..."
-            if [ -d "Payload/App.app/_CodeSignature" ]; then
-              rm -rf Payload/App.app/_CodeSignature
-              echo "✅ Removed main app signature"
-            fi
-            if [ -d "Payload/App.app/Frameworks" ]; then
-              for framework in Payload/App.app/Frameworks/*.framework; do
-                if [ -d "$framework" ] && [ -d "$framework/_CodeSignature" ]; then
-                  rm -rf "$framework/_CodeSignature"
-                  echo "✅ Removed $(basename "$framework") signature"
-                fi
-              done
-            fi
+            # Export for App Store distribution using automatic signing
+            echo "📦 Exporting for App Store distribution..."
+            xcodebuild -exportArchive \
+              -archivePath App.xcarchive \
+              -exportPath . \
+              -exportOptionsPlist exportOptions.plist
             
-            # Fix bundle ID collision in frameworks BEFORE signing
-            echo "🔧 Fixing bundle ID collisions in frameworks (before signing)..."
-            if [ -d "Payload/App.app/Frameworks" ]; then
-              for framework in Payload/App.app/Frameworks/*.framework; do
-                if [ -d "$framework" ] && [ -f "$framework/Info.plist" ]; then
-                  FRAMEWORK_NAME=$(basename "$framework" .framework)
-                  echo "  🔧 Updating bundle ID for $FRAMEWORK_NAME..."
-                  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.qaonline.app.$FRAMEWORK_NAME" "$framework/Info.plist" 2>/dev/null || echo "  Could not update $FRAMEWORK_NAME bundle ID"
-                fi
-              done
-            fi
-            
-            # Find signing identity
-            SIGNING_IDENTITY=""
-            if security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -q "Apple Distribution"; then
-              SIGNING_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | cut -d'"' -f2)
-            elif security find-identity -v -p codesigning build.keychain 2>/dev/null | grep -q "iPhone Distribution"; then
-              SIGNING_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "iPhone Distribution" | head -1 | cut -d'"' -f2)
-            fi
-            
-            if [ -n "$SIGNING_IDENTITY" ]; then
-              echo "✅ Found signing identity: $SIGNING_IDENTITY"
-              
-              # Sign frameworks first (CRITICAL for App Store Connect validation)
-              if [ -d "Payload/App.app/Frameworks" ]; then
-                echo "🔐 Signing frameworks individually..."
-                
-                # Ensure keychain is unlocked and accessible
-                security unlock-keychain -p "" build.keychain
-                security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-                
-                for framework in Payload/App.app/Frameworks/*.framework; do
-                  if [ -d "$framework" ]; then
-                    echo "  🔐 Signing $(basename "$framework")..."
-                    
-                    # Ensure keychain is accessible for this signing operation
-                    security unlock-keychain -p "" build.keychain
-                    
-                    # Extract entitlements from provisioning profile for frameworks
-                    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                      echo "  📄 Extracting entitlements from provisioning profile..."
-                      security cms -D -i QAOnlineAppStoreProfile.mobileprovision > profile.plist 2>/dev/null || echo "Could not extract profile"
-                      if [ -f "profile.plist" ]; then
-                        /usr/libexec/PlistBuddy -x -c "Print :Entitlements" profile.plist > framework_entitlements.plist 2>/dev/null || echo "No entitlements in profile"
-                      fi
-                    fi
-                    
-                    # Try primary signing approach with entitlements
-                    if [ -f "framework_entitlements.plist" ]; then
-                      echo "  🔐 Signing with entitlements..."
-                      if codesign --force --sign "$SIGNING_IDENTITY" --entitlements framework_entitlements.plist --verbose "$framework" 2>&1; then
-                        echo "  ✅ $(basename "$framework") signed successfully with entitlements"
-                      else
-                        echo "  ❌ Failed to sign $(basename "$framework") with entitlements, trying without..."
-                        if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
-                          echo "  ✅ $(basename "$framework") signed successfully without entitlements"
-                        else
-                          echo "  ❌ Failed to sign $(basename "$framework") with primary method"
-                          echo "  🔍 Attempting with explicit keychain parameter..."
-                          
-                          # Try alternative signing approach with explicit keychain
-                          if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
-                            echo "  ✅ $(basename "$framework") signed with alternative method"
-                          else
-                            echo "  ❌ All signing attempts failed for $(basename "$framework")"
-                            echo "  🔍 Checking framework permissions and structure..."
-                            ls -la "$framework"
-                            echo "  📋 Available identities:"
-                            security find-identity -v -p codesigning build.keychain
-                            echo "  🔍 Last codesign error output above"
-                            exit 1
-                          fi
-                        fi
-                      fi
-                    else
-                      # No entitlements available, sign without them
-                      if codesign --force --sign "$SIGNING_IDENTITY" --verbose "$framework" 2>&1; then
-                        echo "  ✅ $(basename "$framework") signed successfully"
-                      else
-                        echo "  ❌ Failed to sign $(basename "$framework") with primary method"
-                        echo "  🔍 Attempting with explicit keychain parameter..."
-                        
-                        # Try alternative signing approach with explicit keychain
-                        if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose "$framework" 2>&1; then
-                          echo "  ✅ $(basename "$framework") signed with alternative method"
-                        else
-                          echo "  ❌ All signing attempts failed for $(basename "$framework")"
-                          echo "  🔍 Checking framework permissions and structure..."
-                          ls -la "$framework"
-                          echo "  📋 Available identities:"
-                          security find-identity -v -p codesigning build.keychain
-                          echo "  🔍 Last codesign error output above"
-                          exit 1
-                        fi
-                      fi
-                    fi
-                  fi
-                done
-                echo "✅ All frameworks signed successfully"
-              else
-                echo "ℹ️  No frameworks directory found"
-              fi
-              
-              # Now sign the main app bundle (must be done after frameworks)
-              echo "🔐 Signing main app bundle with entitlements..."
-              security unlock-keychain -p "" build.keychain
-              security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-              
-              # Create main app entitlements from provisioning profile
-              if [ -f "profile.plist" ]; then
-                echo "📄 Creating main app entitlements..."
-                /usr/libexec/PlistBuddy -x -c "Print :Entitlements" profile.plist > app_entitlements.plist 2>/dev/null || echo "No entitlements in profile"
-              fi
-              
-              # CRITICAL: Sign main app with Apple's most basic and reliable approach
-              echo "🔐 Signing main app with Apple Distribution certificate..."
-              
-              # Ensure we have the full certificate chain available
-              echo "🔍 Verifying certificate chain..."
-              security find-certificate -a -c "Apple Distribution" build.keychain | head -5
-              
-              # Use Apple's most basic and reliable signing approach
-              echo "🔐 Using Apple's basic signing approach for maximum compatibility..."
-              if [ -f "app_entitlements.plist" ]; then
-                echo "🔐 Signing main app with entitlements (basic approach)..."
-                # Use the most basic signing approach that Apple guarantees works
-                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose Payload/App.app/ 2>&1; then
-                  echo "✅ Main app bundle signed successfully with basic approach"
-                else
-                  echo "❌ Failed to sign with entitlements, trying without..."
-                  if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
-                    echo "✅ Main app bundle signed successfully without entitlements"
-                  else
-                    echo "❌ Failed to sign main app bundle with basic approach"
-                    echo "🔍 Attempting with explicit keychain parameter..."
-                    
-                    # Try alternative signing approach for main app
-                    if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
-                      echo "✅ Main app bundle signed with alternative method"
-                    else
-                      echo "❌ All signing attempts failed for main app bundle"
-                      echo "🔍 Checking app bundle permissions and structure..."
-                      ls -la Payload/App.app/
-                      echo "📋 Available identities:"
-                      security find-identity -v -p codesigning build.keychain
-                      echo "🔍 Last codesign error output above"
-                      exit 1
-                    fi
-                  fi
-                fi
-              else
-                # No entitlements available, sign without them
-                echo "🔐 Signing main app without entitlements (basic approach)..."
-                if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
-                  echo "✅ Main app bundle signed successfully with basic approach"
-                else
-                  echo "❌ Failed to sign main app bundle with basic approach"
-                  echo "🔍 Attempting with explicit keychain parameter..."
-                  
-                  # Try alternative signing approach for main app
-                  if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
-                    echo "✅ Main app bundle signed with alternative method"
-                  else
-                    echo "❌ All signing attempts failed for main app bundle"
-                    echo "🔍 Checking app bundle permissions and structure..."
-                    ls -la Payload/App.app/
-                    echo "📋 Available identities:"
-                    security find-identity -v -p codesigning build.keychain
-                    echo "🔍 Last codesign error output above"
-                    exit 1
-                  fi
-                fi
-              fi
-              
-              # Verify all signatures
-              echo "🔍 Verifying signatures..."
-              if [ -d "Payload/App.app/Frameworks" ]; then
-                for framework in Payload/App.app/Frameworks/*.framework; do
-                  if [ -d "$framework" ]; then
-                    if codesign --verify "$framework" 2>/dev/null; then
-                      echo "  ✅ $(basename "$framework") signature verified"
-                    else
-                      echo "  ❌ $(basename "$framework") signature verification failed"
-                      exit 1
-                    fi
-                  fi
-                done
-              fi
-              
-              if codesign --verify Payload/App.app/ 2>/dev/null; then
-                echo "✅ Main app signature verified"
-                
-                # CRITICAL: Additional verification for App Store compatibility
-                echo "🔍 Performing App Store signature validation..."
-                if codesign --verify --verbose=4 Payload/App.app/ 2>&1 | grep -q "valid on disk"; then
-                  echo "✅ App Store signature validation passed"
-                else
-                  echo "⚠️  App Store signature validation warning - continuing anyway"
-                fi
-                
-                # Verify the signature contains the expected certificate
-                echo "🔍 Verifying signature certificate..."
-                if codesign -d --entitlements :- Payload/App.app/ 2>/dev/null | grep -q "com.qaonline.app"; then
-                  echo "✅ Signature contains correct bundle identifier"
-                else
-                  echo "⚠️  Signature bundle identifier verification warning"
-                fi
-              else
-                echo "❌ Main app signature verification failed"
-                exit 1
-              fi
-              
-              echo "🎉 Framework signing fixes applied successfully!"
+            # Verify the exported IPA exists
+            if [ -f "App.ipa" ]; then
+              mv App.ipa ../../App.ipa
+              echo "✅ Successfully built and exported IPA using Apple's best practices"
             else
-              echo "⚠️  No signing identity found - using unsigned IPA (will likely fail at App Store)"
+              echo "❌ Failed to export IPA - checking for errors..."
+              ls -la
+              exit 1
             fi
             
-            # Verify executable
-            if [ -f "Payload/App.app/App" ]; then
-              EXEC_TYPE=$(file Payload/App.app/App)
-              echo "🔍 Executable type: $EXEC_TYPE"
-              if echo "$EXEC_TYPE" | grep -q "Mach-O"; then
-                echo "✅ Valid iOS executable"
-              fi
+            cd ../..
+            
+            # Verify the IPA structure
+            echo "🔍 Verifying IPA structure..."
+            unzip -t App.ipa
+            echo "✅ IPA structure verified"
+            
+            # Verify the IPA is properly signed and ready for upload
+            echo "🔍 Verifying IPA is ready for App Store Connect..."
+            if [ -f "App.ipa" ]; then
+              echo "✅ IPA file created successfully: $(ls -lh App.ipa)"
+              
+              # Verify the IPA structure
+              echo "🔍 Verifying IPA structure..."
+              unzip -t App.ipa > /dev/null
+              echo "✅ IPA structure verified"
+            else
+              echo "❌ ERROR: Failed to create IPA!"
+              exit 1
             fi
-            
-            # Fix Info.plist version format for App Store compliance
-            echo "🔧 Fixing version format in Info.plist..."
-            python3 -c "
-            import plistlib
-            import shutil
-            
-            # Read the current Info.plist
-            with open('Payload/App.app/Info.plist', 'rb') as f:
-                plist = plistlib.load(f)
-            
-            # Backup original
-            shutil.copy('Payload/App.app/Info.plist', 'Payload/App.app/Info.plist.backup')
-            
-            # Fix the version string - remove invalid prefixes
-            old_version = plist['CFBundleShortVersionString']
-            new_version = old_version.replace('release-v', '').replace('v', '')
-            plist['CFBundleShortVersionString'] = new_version
-            
-            print(f'Version fixed: {old_version} -> {new_version}')
-            
-            # Write the corrected Info.plist
-            with open('Payload/App.app/Info.plist', 'wb') as f:
-                plistlib.dump(plist, f)
-            
-            print('Info.plist updated for App Store compliance')
-            "
-            
-            # Create IPA
-            echo "📦 Creating final IPA..."
-            zip -r App.ipa Payload/
             
             if [ ! -f "App.ipa" ]; then
               echo "❌ ERROR: Failed to create IPA!"
@@ -459,58 +205,65 @@ jobs:
             mkdir -p ~/.appstoreconnect/private_keys
             cp "AuthKey_${API_KEY_ID}.p8" ~/.appstoreconnect/private_keys/
             
-                        # Try Fastlane first (most reliable for iOS App Store uploads)
-            echo "🚀 Attempting upload with Fastlane..."
+                        # Use Apple's modern best practices for App Store Connect upload
+            echo "🚀 Uploading to App Store Connect using Apple's modern best practices..."
             
-            # Create API key object for Fastlane
-            echo '{' > api_key.json
-            echo "  \"key_id\": \"$API_KEY_ID\"," >> api_key.json
-            echo "  \"issuer_id\": \"$ISSUER_ID\"," >> api_key.json
-            echo "  \"key\": \"$(cat AuthKey_${API_KEY_ID}.p8 | base64 | tr -d '\n')\"," >> api_key.json
-            echo "  \"duration\": 1200," >> api_key.json
-            echo "  \"in_house\": false" >> api_key.json
-            echo '}' >> api_key.json
-            
-            if fastlane run upload_to_app_store \
-              ipa:"App.ipa" \
-              api_key:"$(cat api_key.json)" \
-              skip_metadata:true \
-              skip_screenshots:true \
-              force:true; then
-              echo "🎉 SUCCESS: App uploaded to App Store Connect via Fastlane!"
-              rm -f api_key.json
+            # First validate the app (Apple's recommended approach)
+            echo "🔍 Validating app before upload..."
+            if xcrun altool --validate-app \
+              --type ios \
+              --file "$(pwd)/App.ipa" \
+              --apiKey "$API_KEY_ID" \
+              --apiIssuer "$ISSUER_ID" \
+              --verbose; then
+              echo "✅ App validation successful"
             else
-              echo "⚠️ Fastlane failed, trying altool..."
-              rm -f api_key.json
-              
-              # Try altool as fallback (proper iOS App Store upload tool)
-              echo "🚀 Attempting upload with xcrun altool..."
-              if xcrun altool --upload-app \
-                --file "$(pwd)/App.ipa" \
-                --type ios \
-                --apiKey "$API_KEY_ID" \
-                --apiIssuer "$ISSUER_ID" \
-                --verbose; then
-                echo "🎉 SUCCESS: App uploaded to App Store Connect via altool!"
-                echo "❌ All upload methods failed!"
-                echo ""
-                echo "🔍 TROUBLESHOOTING GUIDE:"
-                echo "📋 1. Check API key permissions in App Store Connect:"
-                echo "   - Go to Users and Access > Keys"
-                echo "   - Ensure key has 'App Manager' or 'Admin' role"
-                echo "   - Verify 'Access to App Store Connect API' is enabled"
-                echo ""
-                echo "📋 2. Check API key status:"
-                echo "   - Ensure key is not expired"
-                echo "   - Verify key is still active"
-                echo ""
-                echo "📋 3. Check app configuration:"
-                echo "   - Verify bundle ID matches App Store Connect"
-                echo "   - Ensure app exists in App Store Connect"
-                echo "   - Check if app record exists for 'com.qaonline.app'"
-                echo ""
-                exit 1
-              fi
+              echo "❌ App validation failed - checking for issues..."
+              echo "🔍 This could indicate signing or configuration problems"
+              echo "📋 Common issues:"
+              echo "   - Bundle ID mismatch"
+              echo "   - Invalid signing certificate"
+              echo "   - Missing provisioning profile"
+              echo "   - SDK version requirements"
+              exit 1
+            fi
+            
+            # Upload to App Store Connect using modern API key approach
+            echo "🚀 Uploading to App Store Connect..."
+            if xcrun altool --upload-app \
+              --type ios \
+              --file "$(pwd)/App.ipa" \
+              --apiKey "$API_KEY_ID" \
+              --apiIssuer "$ISSUER_ID" \
+              --verbose; then
+              echo "🎉 SUCCESS: App uploaded to App Store Connect!"
+              echo "📱 Your app is now processing in App Store Connect"
+              echo "🔗 Check status at: https://appstoreconnect.apple.com"
+              echo "📲 Once processing completes, it will be available in TestFlight"
+            else
+              echo "❌ Upload failed!"
+              echo ""
+              echo "🔍 TROUBLESHOOTING GUIDE:"
+              echo "📋 1. Check API key permissions in App Store Connect:"
+              echo "   - Go to Users and Access > Keys"
+              echo "   - Ensure key has 'App Manager' or 'Admin' role"
+              echo "   - Verify 'Access to App Store Connect API' is enabled"
+              echo ""
+              echo "📋 2. Check API key status:"
+              echo "   - Ensure key is not expired"
+              echo "   - Verify key is still active"
+              echo ""
+              echo "📋 3. Check app configuration:"
+              echo "   - Verify bundle ID matches App Store Connect"
+              echo "   - Ensure app exists in App Store Connect"
+              echo "   - Check if app record exists for 'com.qaonline.app'"
+              echo ""
+              echo "📋 4. Check signing configuration:"
+              echo "   - Verify automatic signing is working"
+              echo "   - Check team ID is correct"
+              echo "   - Ensure provisioning profile is valid"
+              echo ""
+              exit 1
             fi
             
             echo "🎉 UPLOAD COMPLETE!"
