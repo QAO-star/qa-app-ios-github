@@ -18,6 +18,16 @@ jobs:
       - checkout
       
       - run:
+          name: "Setup Node.js and Capacitor"
+          command: |
+            # Install Node.js dependencies and Capacitor CLI
+            echo "📦 Installing Node.js dependencies..."
+            npm install
+            npm install -g @capacitor/cli
+            
+            echo "✅ Node.js and Capacitor setup complete"
+      
+      - run:
           name: "Setup Environment and Upload to App Store"
           command: |
             set -e
