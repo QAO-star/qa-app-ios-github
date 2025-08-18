@@ -65,20 +65,19 @@ echo "⚙️ Configuring iOS build settings..."
 echo "🔨 Building archive..."
 xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
 
-# Build without signing first (this should work)
-echo "🔨 Building without signing..."
+# Build with automatic signing
+echo "🔨 Building with automatic signing..."
 xcodebuild archive \
     -workspace App.xcworkspace \
     -scheme App \
     -configuration Release \
     -destination generic/platform=iOS \
     -archivePath App.xcarchive \
+    -allowProvisioningUpdates \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
     CURRENT_PROJECT_VERSION="$BUILD_NUM" \
-    MARKETING_VERSION="$VERSION" \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGNING_ALLOWED=NO
+    MARKETING_VERSION="$VERSION"
 
 # Create automatic signing export options
 echo "📝 Creating automatic signing export options..."

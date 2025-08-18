@@ -517,6 +517,46 @@ jobs:
                 CREATE_TEST_IPA=true
               fi
               
+              # Configure Apple Developer account for automatic signing
+              echo "🔧 Configuring Apple Developer account for automatic signing..."
+              
+              # Create Xcode preferences directory
+              mkdir -p ~/Library/Preferences
+              
+              # Configure Apple Developer account using defaults command
+              # This sets up the account that Xcode will use for automatic signing
+              defaults write com.apple.dt.Xcode IDEDevelopmentTeam -string "$APPLE_TEAM_ID"
+              defaults write com.apple.dt.Xcode IDEProvisioningStyle -string "Automatic"
+              
+              # Set up keychain for automatic signing
+              # Create a temporary keychain for the build
+              security create-keychain -p "" build.keychain
+              security list-keychains -s build.keychain
+              security default-keychain -s build.keychain
+              security unlock-keychain -p "" build.keychain
+              security set-keychain-settings build.keychain
+              
+              echo "✅ Keychain configured for automatic signing"
+              
+              # Also try to set the Apple ID (this helps with account selection)
+              APPLE_ID="jonatan.k@qaonline.co.il"
+              defaults write com.apple.dt.Xcode IDEAppleID -string "$APPLE_ID"
+              echo "✅ Configured Apple ID: $APPLE_ID"
+              
+              echo "✅ Apple Developer account configured for automatic signing"
+              
+              # Install provisioning profile for automatic signing
+              echo "📄 Installing provisioning profile for automatic signing..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              
+              # Copy the provisioning profile to the system location
+              if [ -f "../../QAOnlineAppStoreProfile.mobileprovision" ]; then
+                cp ../../QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+                echo "✅ Provisioning profile installed for automatic signing"
+              else
+                echo "⚠️ Provisioning profile not found, Xcode will auto-generate one"
+              fi
+              
               # Create a scheme for the App target
               echo "🔧 Creating scheme for App target..."
               mkdir -p App.xcodeproj/xcshareddata/xcschemes
@@ -714,8 +754,8 @@ jobs:
                   echo "✅ Archive found! Contents:"
                   ls -la App.xcarchive/
                   
-                  # Create export options for development distribution (no signing)
-                  echo "📦 Creating export options for real iOS app..."
+                  # Create export options for automatic signing
+                  echo "📦 Creating export options for real iOS app with automatic signing..."
                   printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-real.plist
                   printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-real.plist
                   printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
@@ -723,14 +763,9 @@ jobs:
                   printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
                   printf '%s\n' '    <string>app-store</string>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>manual</string>' >> exportOptions-real.plist
+                  printf '%s\n' '    <string>automatic</string>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>teamID</key>' >> exportOptions-real.plist
                   printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>provisioningProfiles</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <dict>' >> exportOptions-real.plist
-                  printf '%s\n' '        <key>com.qaonline.app</key>' >> exportOptions-real.plist
-                  printf '%s\n' '        <string>QA-Online-AppStore</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    </dict>' >> exportOptions-real.plist
                   printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
                   printf '%s\n' '    <false/>' >> exportOptions-real.plist
                   printf '%s\n' '</dict>' >> exportOptions-real.plist
@@ -1071,14 +1106,15 @@ jobs:
               echo "🔧 Setting deployment target to iOS 13.0 (required by Capacitor)..."
               sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]*\.[0-9]*/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' App.xcodeproj/project.pbxproj || echo "Could not update deployment target"
               
-              # Disable code signing completely  
-              sed -i '' 's/CODE_SIGN_STYLE = [^;]*/CODE_SIGN_STYLE = Manual/g' App.xcodeproj/project.pbxproj || echo "Could not update code sign style"
-              sed -i '' 's/CODE_SIGNING_REQUIRED = [^;]*/CODE_SIGNING_REQUIRED = NO/g' App.xcodeproj/project.pbxproj || echo "Could not disable code signing"
+              # Configure automatic code signing with proper team ID
+              echo "🔧 Configuring automatic code signing with team ID..."
+              sed -i '' 's/CODE_SIGN_STYLE = [^;]*/CODE_SIGN_STYLE = Automatic/g' App.xcodeproj/project.pbxproj || echo "Could not update code sign style"
+              sed -i '' 's/DEVELOPMENT_TEAM = [^;]*/DEVELOPMENT_TEAM = '"$APPLE_TEAM_ID"'/g' App.xcodeproj/project.pbxproj || echo "Could not update development team"
               
-              # Retry the build with aggressive fixes
-              echo "🔧 Retrying iOS build with fixes..."
+              # Retry the build with proper automatic signing
+              echo "🔧 Retrying iOS build with automatic signing..."
               set +e
-              xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="13.0" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE="" CODE_SIGN_IDENTITY="" 2>&1 | tee /dev/stderr
+              xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM="$APPLE_TEAM_ID" IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr
               FIXED_BUILD_EXIT_CODE=$?
               set -e
               
@@ -1095,7 +1131,9 @@ jobs:
                   printf '%s\n' '    <key>method</key>' >> exportOptions-simple.plist
                   printf '%s\n' '    <string>development</string>' >> exportOptions-simple.plist
                   printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <string>manual</string>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <string>automatic</string>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <key>teamID</key>' >> exportOptions-simple.plist
+                  printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-simple.plist
                   printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-simple.plist
                   printf '%s\n' '    <true/>' >> exportOptions-simple.plist
                   printf '%s\n' '</dict>' >> exportOptions-simple.plist
