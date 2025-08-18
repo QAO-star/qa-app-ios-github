@@ -119,8 +119,64 @@ if [ -n "$SIGNING_IDENTITY" ]; then
     cd temp_ipa
     unzip -o "../$IPA_FILE"
     
-    # Sign the app
-    codesign --force --sign "$SIGNING_IDENTITY" --entitlements ../ios/App/App/App.entitlements Payload/App.app/ || echo "Codesign failed, continuing with unsigned app"
+    # Install provisioning profile in app bundle
+    if [ -f "../QAOnlineAppStoreProfile.mobileprovision" ]; then
+        echo "📄 Installing provisioning profile in app bundle..."
+        cp "../QAOnlineAppStoreProfile.mobileprovision" Payload/App.app/embedded.mobileprovision
+        echo "✅ Provisioning profile installed in app bundle"
+    fi
+    
+    # Sign all frameworks first (CRITICAL for App Store Connect validation)
+    if [ -d "Payload/App.app/Frameworks" ]; then
+        echo "🔐 Signing frameworks individually..."
+        for framework in Payload/App.app/Frameworks/*.framework; do
+            if [ -d "$framework" ]; then
+                echo "  🔐 Signing $(basename "$framework")..."
+                codesign --force --sign "$SIGNING_IDENTITY" "$framework"
+                if [ $? -eq 0 ]; then
+                    echo "  ✅ $(basename "$framework") signed successfully"
+                else
+                    echo "  ❌ Failed to sign $(basename "$framework")"
+                    exit 1
+                fi
+            fi
+        done
+        echo "✅ All frameworks signed successfully"
+    else
+        echo "ℹ️  No frameworks directory found"
+    fi
+    
+    # Now sign the main app bundle (must be done after frameworks)
+    echo "🔐 Signing main app bundle..."
+    codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app/
+    if [ $? -eq 0 ]; then
+        echo "✅ Main app bundle signed successfully"
+    else
+        echo "❌ Failed to sign main app bundle"
+        exit 1
+    fi
+    
+    # Verify all signatures
+    echo "🔍 Verifying signatures..."
+    if [ -d "Payload/App.app/Frameworks" ]; then
+        for framework in Payload/App.app/Frameworks/*.framework; do
+            if [ -d "$framework" ]; then
+                if codesign --verify "$framework" 2>/dev/null; then
+                    echo "  ✅ $(basename "$framework") signature verified"
+                else
+                    echo "  ❌ $(basename "$framework") signature verification failed"
+                    exit 1
+                fi
+            fi
+        done
+    fi
+    
+    if codesign --verify Payload/App.app/ 2>/dev/null; then
+        echo "✅ Main app signature verified"
+    else
+        echo "❌ Main app signature verification failed"
+        exit 1
+    fi
     
     # Recreate IPA
     zip -r "../App-signed.ipa" Payload/
@@ -128,7 +184,7 @@ if [ -n "$SIGNING_IDENTITY" ]; then
     rm -rf temp_ipa
     
     FINAL_IPA="App-signed.ipa"
-    echo "✅ IPA signed successfully"
+    echo "✅ IPA signed successfully with proper framework signing"
 else
     echo "⚠️ Using unsigned IPA for upload"
     FINAL_IPA="$IPA_FILE"
