@@ -40,17 +40,56 @@ echo "📦 Extracting IPA..."
 unzip -q App.ipa -d Payload/
 
 echo "📄 Installing provisioning profile..."
-mkdir -p Payload/App.app/embedded.mobileprovision
-cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision/
+cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
 
 echo "🔐 Attempting to sign with available tools..."
 
 # Try different signing approaches
 if command -v codesign &> /dev/null; then
     echo "🔐 Using codesign..."
+    
+    # First, sign all frameworks if they exist
+    if [ -d "Payload/App.app/Frameworks" ]; then
+        echo "🔐 Signing frameworks first..."
+        FRAMEWORKS_SIGNED=true
+        for framework in Payload/App.app/Frameworks/*.framework; do
+            if [ -d "$framework" ]; then
+                echo "  🔐 Signing $(basename "$framework")..."
+                if codesign --force --sign "iPhone Distribution" "$framework" 2>/dev/null; then
+                    echo "  ✅ $(basename "$framework") signed successfully"
+                else
+                    echo "  ❌ Failed to sign $(basename "$framework")"
+                    FRAMEWORKS_SIGNED=false
+                fi
+            fi
+        done
+        
+        if [ "$FRAMEWORKS_SIGNED" = true ]; then
+            echo "✅ All frameworks signed successfully"
+        else
+            echo "⚠️ Some frameworks failed to sign"
+        fi
+    fi
+    
+    # Install provisioning profile in app bundle
+    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+        echo "📄 Installing provisioning profile in app bundle..."
+        cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
+        echo "✅ Provisioning profile installed"
+    fi
+    
+    # Now sign the main app bundle
     if codesign --force --sign "iPhone Distribution" Payload/App.app 2>/dev/null; then
-        echo "✅ Successfully signed with codesign"
+        echo "✅ Successfully signed main app bundle with codesign"
         SIGNED=true
+        
+        # Verify the signing
+        echo "🔍 Verifying app signature..."
+        if codesign --verify --verbose=4 Payload/App.app 2>/dev/null; then
+            echo "✅ App signature verified"
+        else
+            echo "⚠️ App signature verification failed, but continuing..."
+        fi
     else
         echo "⚠️ codesign failed, trying alternative..."
         SIGNED=false

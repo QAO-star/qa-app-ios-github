@@ -54,9 +54,29 @@ mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 echo "✅ Provisioning profile installed"
 
-# Sign the app bundle
-echo "🔐 Signing app bundle..."
-codesign --force --sign "iPhone Distribution" --entitlements QAOnlineAppStoreProfile.mobileprovision Payload/App.app
+# Install provisioning profile in app bundle
+echo "📄 Installing provisioning profile in app bundle..."
+cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
+echo "✅ Provisioning profile installed in app bundle"
+
+# Sign all frameworks first
+if [ -d "Payload/App.app/Frameworks" ]; then
+    echo "🔐 Signing frameworks..."
+    for framework in Payload/App.app/Frameworks/*.framework; do
+        if [ -d "$framework" ]; then
+            echo "  🔐 Signing $(basename "$framework")..."
+            codesign --force --sign "iPhone Distribution" "$framework"
+            echo "  ✅ $(basename "$framework") signed successfully"
+        fi
+    done
+    echo "✅ All frameworks signed"
+else
+    echo "ℹ️  No frameworks directory found"
+fi
+
+# Sign the main app bundle
+echo "🔐 Signing main app bundle..."
+codesign --force --sign "iPhone Distribution" Payload/App.app
 echo "✅ App bundle signed"
 
 # Create signed IPA
