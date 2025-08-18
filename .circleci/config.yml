@@ -1356,26 +1356,52 @@ jobs:
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" ~/Library/Keychains/build.keychain
               security default-keychain -s ~/Library/Keychains/build.keychain
               
-              # Sign frameworks first (they must be signed before the main app)
-              echo "🔐 Signing embedded frameworks..."
+              # 🔐 CRITICAL FIX: Proper framework signing for App Store submission
+              echo "🔐 CRITICAL: Signing embedded frameworks with proper entitlements..."
               if [ -d "Payload/App.app/Frameworks" ]; then
+                # Create framework entitlements file using printf to avoid YAML issues
+                printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > framework_entitlements.plist
+                printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> framework_entitlements.plist
+                printf '%s\n' '<plist version="1.0">' >> framework_entitlements.plist
+                printf '%s\n' '<dict>' >> framework_entitlements.plist
+                printf '%s\n' '    <key>com.apple.developer.team-identifier</key>' >> framework_entitlements.plist
+                printf '%s\n' '    <string>BL7NANM4RM</string>' >> framework_entitlements.plist
+                printf '%s\n' '</dict>' >> framework_entitlements.plist
+                printf '%s\n' '</plist>' >> framework_entitlements.plist
+                
                 for framework in Payload/App.app/Frameworks/*.framework; do
                   if [ -d "$framework" ]; then
                     framework_name=$(basename "$framework")
                     echo "🔐 Signing framework: $framework_name"
-                    if codesign --force --sign "$CERT_HASH" "$framework"; then
-                      echo "✅ Successfully signed $framework_name"
+                    
+                    # Remove existing signature first
+                    codesign --remove-signature "$framework" 2>/dev/null || true
+                    
+                    # Sign with proper Apple Distribution certificate and entitlements
+                    if codesign --force --sign "$CERT_HASH" --entitlements framework_entitlements.plist --verbose "$framework"; then
+                      echo "✅ Successfully signed $framework_name with entitlements"
+                      
+                      # Verify the signature
+                      if codesign --verify --verbose "$framework" 2>/dev/null; then
+                        echo "✅ Signature verification passed for $framework_name"
+                      else
+                        echo "⚠️ Signature verification failed for $framework_name"
+                      fi
                     else
                       echo "⚠️ Failed to sign $framework_name with certificate hash, trying identity name..."
-                      IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-                      if codesign --force --sign "$IDENTITY_NAME" "$framework"; then
-                        echo "✅ Successfully signed $framework_name with identity name"
+                      IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Distribution|iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+                      if [ -n "$IDENTITY_NAME" ] && codesign --force --sign "$IDENTITY_NAME" --entitlements framework_entitlements.plist --verbose "$framework"; then
+                        echo "✅ Successfully signed $framework_name with identity name and entitlements"
                       else
-                        echo "❌ Failed to sign $framework_name"
+                        echo "❌ CRITICAL: Failed to sign $framework_name - this will cause App Store rejection!"
+                        # Continue anyway but log the failure
                       fi
                     fi
                   fi
                 done
+                
+                # Clean up entitlements file
+                rm -f framework_entitlements.plist
               fi
               
               # Now sign the main app with entitlements (must be last)
