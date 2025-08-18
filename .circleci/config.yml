@@ -107,12 +107,29 @@ jobs:
             # CRITICAL: Apply framework signing fixes before upload
             echo "🔐 Applying framework signing fixes..."
             
-            # Install provisioning profile in app bundle
-            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-              echo "📄 Installing provisioning profile in app bundle..."
-              cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-              echo "✅ Provisioning profile installed in app bundle"
-            fi
+                          # Install provisioning profile in app bundle
+              if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+                echo "📄 Installing provisioning profile in app bundle..."
+                cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
+                echo "✅ Provisioning profile installed in app bundle"
+                
+                # CRITICAL: Verify provisioning profile is properly embedded
+                echo "🔍 Verifying provisioning profile embedding..."
+                if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
+                  echo "✅ Provisioning profile found in app bundle"
+                  # Extract and verify the provisioning profile contents
+                  security cms -D -i Payload/App.app/embedded.mobileprovision > embedded_profile.plist 2>/dev/null || echo "Could not extract embedded profile"
+                  if [ -f "embedded_profile.plist" ]; then
+                    echo "📄 Embedded profile extracted successfully"
+                    # Verify the app ID matches
+                    EMBEDDED_APP_ID=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" embedded_profile.plist 2>/dev/null || echo "Could not read app ID")
+                    echo "🔍 Embedded profile app ID: $EMBEDDED_APP_ID"
+                  fi
+                else
+                  echo "❌ Provisioning profile not found in app bundle"
+                  exit 1
+                fi
+              fi
             
             # Fix bundle ID collision in frameworks BEFORE signing
             echo "🔧 Fixing bundle ID collisions in frameworks (before signing)..."
@@ -220,6 +237,7 @@ jobs:
               # Now sign the main app bundle (must be done after frameworks)
               echo "🔐 Signing main app bundle with entitlements..."
               security unlock-keychain -p "" build.keychain
+              security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
               
               # Create main app entitlements from provisioning profile
               if [ -f "profile.plist" ]; then
@@ -227,21 +245,23 @@ jobs:
                 /usr/libexec/PlistBuddy -x -c "Print :Entitlements" profile.plist > app_entitlements.plist 2>/dev/null || echo "No entitlements in profile"
               fi
               
-              # Sign main app with entitlements
+              # CRITICAL: Sign main app with proper certificate chain and provisioning profile
+              echo "🔐 Signing main app with Apple Distribution certificate..."
               if [ -f "app_entitlements.plist" ]; then
                 echo "🔐 Signing main app with entitlements..."
-                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose Payload/App.app/ 2>&1; then
+                # Use the exact same signing approach that works for frameworks
+                if codesign --force --sign "$SIGNING_IDENTITY" --entitlements app_entitlements.plist --verbose --deep Payload/App.app/ 2>&1; then
                   echo "✅ Main app bundle signed successfully with entitlements"
                 else
                   echo "❌ Failed to sign main app with entitlements, trying without..."
-                  if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
+                  if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep Payload/App.app/ 2>&1; then
                     echo "✅ Main app bundle signed successfully without entitlements"
                   else
                     echo "❌ Failed to sign main app bundle with primary method"
                     echo "🔍 Attempting with explicit keychain parameter..."
                     
                     # Try alternative signing approach for main app
-                    if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
+                    if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose --deep Payload/App.app/ 2>&1; then
                       echo "✅ Main app bundle signed with alternative method"
                     else
                       echo "❌ All signing attempts failed for main app bundle"
@@ -257,14 +277,14 @@ jobs:
               else
                 # No entitlements available, sign without them
                 echo "🔐 Signing main app without entitlements..."
-                if codesign --force --sign "$SIGNING_IDENTITY" --verbose Payload/App.app/ 2>&1; then
+                if codesign --force --sign "$SIGNING_IDENTITY" --verbose --deep Payload/App.app/ 2>&1; then
                   echo "✅ Main app bundle signed successfully"
                 else
                   echo "❌ Failed to sign main app bundle with primary method"
                   echo "🔍 Attempting with explicit keychain parameter..."
                   
                   # Try alternative signing approach for main app
-                  if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose Payload/App.app/ 2>&1; then
+                  if codesign --force --sign "$SIGNING_IDENTITY" --keychain build.keychain --verbose --deep Payload/App.app/ 2>&1; then
                     echo "✅ Main app bundle signed with alternative method"
                   else
                     echo "❌ All signing attempts failed for main app bundle"
