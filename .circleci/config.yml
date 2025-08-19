@@ -179,21 +179,33 @@ jobs:
             
             # Update bundle identifier and team ID
             if [ -f "App.xcodeproj/project.pbxproj" ]; then
+              echo "📝 Updating iOS project configuration..."
+              
               # Set bundle identifier
               sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = ".*";/PRODUCT_BUNDLE_IDENTIFIER = "com.qaonline.app";/g' App.xcodeproj/project.pbxproj
               
               # Set team ID
               sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "BL7NANM4RM";/g' App.xcodeproj/project.pbxproj
               
-              # Set code signing identity
-              sed -i '' 's/CODE_SIGN_IDENTITY = ".*";/CODE_SIGN_IDENTITY = "Apple Distribution";/g' App.xcodeproj/project.pbxproj
-              
-              # Set provisioning profile - try different patterns
-              sed -i '' 's/PROVISIONING_PROFILE = ".*";/PROVISIONING_PROFILE = "QAOnlineAppStoreProfile";/g' App.xcodeproj/project.pbxproj
-              sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "QAOnlineAppStoreProfile";/g' App.xcodeproj/project.pbxproj
+              # Set code signing identity to Apple Distribution
+              sed -i '' 's/CODE_SIGN_IDENTITY = "iPhone Developer";/CODE_SIGN_IDENTITY = "Apple Distribution";/g' App.xcodeproj/project.pbxproj
               
               # Set code signing style to manual
               sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
+              
+              # Add provisioning profile to build settings
+              echo "📝 Adding provisioning profile to build settings..."
+              
+              # Find the buildSettings sections and add provisioning profile
+              # This is a more robust approach that adds the profile to both debug and release configurations
+              awk '
+              /buildSettings = {/ {
+                  print $0
+                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"QAOnlineAppStoreProfile\";"
+                  next
+              }
+              { print $0 }
+              ' App.xcodeproj/project.pbxproj > App.xcodeproj/project.pbxproj.tmp && mv App.xcodeproj/project.pbxproj.tmp App.xcodeproj/project.pbxproj
               
               echo "✅ iOS project configured"
               
@@ -202,8 +214,8 @@ jobs:
               echo "Bundle ID: $(grep 'PRODUCT_BUNDLE_IDENTIFIER' App.xcodeproj/project.pbxproj | head -1)"
               echo "Team ID: $(grep 'DEVELOPMENT_TEAM' App.xcodeproj/project.pbxproj | head -1)"
               echo "Code Sign Identity: $(grep 'CODE_SIGN_IDENTITY' App.xcodeproj/project.pbxproj | head -1)"
-              echo "Provisioning Profile: $(grep 'PROVISIONING_PROFILE' App.xcodeproj/project.pbxproj | head -1)"
               echo "Code Sign Style: $(grep 'CODE_SIGN_STYLE' App.xcodeproj/project.pbxproj | head -1)"
+              echo "Provisioning Profile: $(grep 'PROVISIONING_PROFILE' App.xcodeproj/project.pbxproj | head -1)"
             fi
             
             cd ../..
