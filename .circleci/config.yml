@@ -195,14 +195,6 @@ jobs:
               # Set code signing style to manual
               sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
               
-              # Add provisioning profile if it doesn't exist
-              if ! grep -q "PROVISIONING_PROFILE" App.xcodeproj/project.pbxproj; then
-                echo "📝 Adding provisioning profile configuration..."
-                # Find the build configuration section and add provisioning profile
-                sed -i '' '/buildSettings = {/a\
-					PROVISIONING_PROFILE = "QAOnlineAppStoreProfile";' App.xcodeproj/project.pbxproj
-              fi
-              
               echo "✅ iOS project configured"
               
               # Verify the configuration
