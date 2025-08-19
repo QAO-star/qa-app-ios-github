@@ -238,13 +238,23 @@ jobs:
               # Replace ALL provisioning profile references with the correct UUID
               echo "🔧 Replacing all provisioning profile references with UUID: $PROFILE_UUID"
               
+              # Show what's currently in the project file
+              echo "📋 Current provisioning profile references in project file:"
+              grep -i "provisioning\|profile" App.xcodeproj/project.pbxproj || echo "No provisioning references found"
+              
               # Replace any existing provisioning profile references
               sed -i '' 's/PROVISIONING_PROFILE = ".*";/PROVISIONING_PROFILE = "'$PROFILE_UUID'";/g' App.xcodeproj/project.pbxproj
               sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "'$PROFILE_UUID'";/g' App.xcodeproj/project.pbxproj
               
-              # Also replace any profile name references
+              # Also replace any profile name references - more aggressive approach
               sed -i '' 's/"QA-Online-App-Store-Profile"/"'$PROFILE_UUID'"/g' App.xcodeproj/project.pbxproj
               sed -i '' 's/"QAOnlineAppStoreProfile"/"'$PROFILE_UUID'"/g' App.xcodeproj/project.pbxproj
+              sed -i '' 's/QA-Online-App-Store-Profile/'$PROFILE_UUID'/g' App.xcodeproj/project.pbxproj
+              sed -i '' 's/QAOnlineAppStoreProfile/'$PROFILE_UUID'/g' App.xcodeproj/project.pbxproj
+              
+              # Show what's in the project file after replacement
+              echo "📋 Provisioning profile references after replacement:"
+              grep -i "provisioning\|profile" App.xcodeproj/project.pbxproj || echo "No provisioning references found"
               
               # Find the buildSettings sections and add provisioning profile if it doesn't exist
               if ! grep -q "PROVISIONING_PROFILE" App.xcodeproj/project.pbxproj; then
