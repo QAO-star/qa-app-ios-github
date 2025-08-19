@@ -178,7 +178,7 @@ jobs:
             # Update iOS project configuration
             cd ios/App
             
-            # Check if Podfile exists and if it requires Capacitor
+            # Install CocoaPods if Podfile exists
             if [ -f "Podfile" ]; then
               echo "📦 Checking Podfile dependencies..."
               if grep -q "@capacitor/ios" Podfile; then
@@ -232,7 +232,6 @@ jobs:
               # Set code signing style to manual
               sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
               
-              # Add provisioning profile to build settings
               echo "📝 Adding provisioning profile to build settings..."
               
               # Replace ALL provisioning profile references with the correct UUID
