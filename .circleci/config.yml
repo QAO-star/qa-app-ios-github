@@ -166,27 +166,25 @@ jobs:
             
             # Create exportOptions.plist if it doesn't exist
             if [ ! -f "exportOptions.plist" ]; then
-              cat > exportOptions.plist << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>app-store</string>
-    <key>teamID</key>
-    <string>BL7NANM4RM</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>provisioningProfiles</key>
-    <dict>
-        <key>com.qaonline.app</key>
-        <string>QAOnlineAppStoreProfile</string>
-    </dict>
-    <key>signingCertificate</key>
-    <string>Apple Distribution</string>
-</dict>
-</plist>
-EOF
+              echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
+              echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
+              echo '<plist version="1.0">' >> exportOptions.plist
+              echo '<dict>' >> exportOptions.plist
+              echo '    <key>method</key>' >> exportOptions.plist
+              echo '    <string>app-store</string>' >> exportOptions.plist
+              echo '    <key>teamID</key>' >> exportOptions.plist
+              echo '    <string>BL7NANM4RM</string>' >> exportOptions.plist
+              echo '    <key>signingStyle</key>' >> exportOptions.plist
+              echo '    <string>manual</string>' >> exportOptions.plist
+              echo '    <key>provisioningProfiles</key>' >> exportOptions.plist
+              echo '    <dict>' >> exportOptions.plist
+              echo '        <key>com.qaonline.app</key>' >> exportOptions.plist
+              echo '        <string>QAOnlineAppStoreProfile</string>' >> exportOptions.plist
+              echo '    </dict>' >> exportOptions.plist
+              echo '    <key>signingCertificate</key>' >> exportOptions.plist
+              echo '    <string>Apple Distribution</string>' >> exportOptions.plist
+              echo '</dict>' >> exportOptions.plist
+              echo '</plist>' >> exportOptions.plist
             fi
             
             # Check if IPA was created
