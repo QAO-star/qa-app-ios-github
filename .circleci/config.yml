@@ -6,6 +6,233 @@ executors:
       xcode: "16.0.0"
 
 jobs:
+  build_and_upload_ios:
+    executor: macos
+    steps:
+      - checkout
+      
+      - run:
+          name: "Setup Xcode and environment"
+          command: |
+            echo "🚀 QA-ONLINE iOS BUILD & UPLOAD PIPELINE"
+            echo "🔧 Setting up Xcode and environment..."
+            xcodebuild -version
+            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+            
+            # Install Node.js and npm
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm install 18
+            nvm use 18
+            
+            echo "✅ Node.js version: $(node --version)"
+            echo "✅ npm version: $(npm --version)"
+      
+      - run:
+          name: "Install dependencies and setup Capacitor"
+          command: |
+            echo "📦 Installing dependencies..."
+            npm install
+            
+            # Install Capacitor CLI globally
+            npm install -g @capacitor/cli@6.0.0
+            
+            # Add iOS platform if not exists
+            if [ ! -d "ios" ]; then
+              echo "📱 Adding iOS platform..."
+              npx cap add ios
+            fi
+            
+            # Sync web content
+            echo "🔄 Syncing web content..."
+            npx cap sync ios
+            
+            echo "✅ Capacitor setup completed"
+      
+      - run:
+          name: "Setup certificates and provisioning profiles"
+          command: |
+            echo "🔐 Setting up certificates and provisioning profiles..."
+            
+            # Create a temporary keychain for signing
+            security create-keychain -p "temp" build.keychain
+            security default-keychain -s build.keychain
+            security unlock-keychain -p "temp" build.keychain
+            security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
+            
+            # Install Apple Distribution certificate
+            if [ -f "auto_distribution.cer" ]; then
+              echo "🎉 Installing Apple Distribution certificate..."
+              security import auto_distribution.cer -k build.keychain -T /usr/bin/codesign
+              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
+            elif [ -f "distribution.cer" ]; then
+              echo "🎉 Installing distribution certificate..."
+              security import distribution.cer -k build.keychain -T /usr/bin/codesign
+              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
+            else
+              echo "❌ No distribution certificate found!"
+              echo "Available certificates:"
+              ls -la *.cer 2>/dev/null || echo "No .cer files found"
+              exit 1
+            fi
+            
+            # Install private key if exists
+            if [ -f "auto_distribution_private_key.pem" ]; then
+              echo "🔑 Installing private key..."
+              security import auto_distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
+            elif [ -f "distribution_private_key.pem" ]; then
+              echo "🔑 Installing private key..."
+              security import distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
+            fi
+            
+            # Install provisioning profile
+            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+              echo "📋 Installing provisioning profile..."
+              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+              cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+              PROFILE_UUID=$(grep -a -A 0 -B 2 "com.qaonline.app" ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision | grep -o "[-A-Za-z0-9]\{36\}" | head -1)
+              if [ -n "$PROFILE_UUID" ]; then
+                mv ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+                echo "✅ Provisioning profile installed with UUID: $PROFILE_UUID"
+              else
+                echo "⚠️ Could not extract UUID, using original filename"
+              fi
+            else
+              echo "❌ No provisioning profile found!"
+              exit 1
+            fi
+            
+            # List installed certificates
+            echo "📋 Installed certificates:"
+            security find-identity -v -p codesigning build.keychain
+            
+            echo "✅ Certificate setup completed"
+      
+      - run:
+          name: "Configure iOS project"
+          command: |
+            echo "⚙️ Configuring iOS project..."
+            
+            # Update iOS project configuration
+            cd ios/App
+            
+            # Update bundle identifier and team ID
+            if [ -f "App.xcodeproj/project.pbxproj" ]; then
+              # Set bundle identifier
+              sed -i '' 's/PRODUCT_BUNDLE_IDENTIFIER = ".*";/PRODUCT_BUNDLE_IDENTIFIER = "com.qaonline.app";/g' App.xcodeproj/project.pbxproj
+              
+              # Set team ID
+              sed -i '' 's/DEVELOPMENT_TEAM = ".*";/DEVELOPMENT_TEAM = "BL7NANM4RM";/g' App.xcodeproj/project.pbxproj
+              
+              # Set code signing identity
+              sed -i '' 's/CODE_SIGN_IDENTITY = ".*";/CODE_SIGN_IDENTITY = "Apple Distribution";/g' App.xcodeproj/project.pbxproj
+              
+              # Set provisioning profile
+              sed -i '' 's/PROVISIONING_PROFILE = ".*";/PROVISIONING_PROFILE = "QAOnlineAppStoreProfile";/g' App.xcodeproj/project.pbxproj
+              
+              echo "✅ iOS project configured"
+            fi
+            
+            cd ../..
+      
+      - run:
+          name: "Build iOS app"
+          command: |
+            echo "🔨 Building iOS app..."
+            
+            cd ios/App
+            
+            # Clean build
+            xcodebuild clean -project App.xcodeproj -scheme App -configuration Release
+            
+            # Build archive
+            xcodebuild archive \
+              -project App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -archivePath App.xcarchive \
+              -destination generic/platform=iOS \
+              CODE_SIGN_IDENTITY="Apple Distribution" \
+              PROVISIONING_PROFILE="QAOnlineAppStoreProfile" \
+              DEVELOPMENT_TEAM="BL7NANM4RM" \
+              PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app"
+            
+            # Export IPA
+            xcodebuild -exportArchive \
+              -archivePath App.xcarchive \
+              -exportPath . \
+              -exportOptionsPlist exportOptions.plist
+            
+            # Create exportOptions.plist if it doesn't exist
+            if [ ! -f "exportOptions.plist" ]; then
+              cat > exportOptions.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>method</key>
+    <string>app-store</string>
+    <key>teamID</key>
+    <string>BL7NANM4RM</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.qaonline.app</key>
+        <string>QAOnlineAppStoreProfile</string>
+    </dict>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
+</dict>
+</plist>
+EOF
+            fi
+            
+            # Check if IPA was created
+            if [ -f "App.ipa" ]; then
+              echo "✅ IPA created successfully: App.ipa"
+              ls -la App.ipa
+            else
+              echo "❌ IPA creation failed"
+              exit 1
+            fi
+            
+            cd ../..
+      
+      - run:
+          name: "Upload to App Store Connect"
+          command: |
+            echo "📤 Uploading to App Store Connect..."
+            
+            cd ios/App
+            
+            # Install altool if not available
+            if ! command -v xcrun &> /dev/null; then
+              echo "❌ Xcode command line tools not available"
+              exit 1
+            fi
+            
+            # Upload using xcrun altool
+            xcrun altool --upload-app \
+              --type ios \
+              --file App.ipa \
+              --username "$APPLE_ID" \
+              --password "$APP_SPECIFIC_PASSWORD" \
+              --verbose
+            
+            echo "✅ Upload completed successfully!"
+            
+            cd ../..
+      
+      - store_artifacts:
+          path: ios/App/App.ipa
+          destination: app-store-ipa
+      
+      - store_artifacts:
+          path: ios/App/App.xcarchive
+          destination: xcarchive
+
   generate_csr_only:
     executor: macos
     steps:
@@ -57,1864 +284,20 @@ jobs:
           path: auto_distribution_private_key.pem  
           destination: private-key
 
-  simple_sign_and_upload:
-    executor: macos
-    steps:
-      - checkout
-      
-      - run:
-          name: "Setup Xcode"
-          command: |
-            echo "🔧 Setting up Xcode..."
-            xcodebuild -version
-            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-      
-      - run:
-          name: "Setup certificates and profiles"
-          command: |
-            echo "🔐 Setting up certificates and profiles..."
-            
-            # Create a temporary keychain for signing
-            security create-keychain -p "temp" build.keychain
-            security default-keychain -s build.keychain
-            security unlock-keychain -p "temp" build.keychain
-            security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
-            
-            # EMERGENCY DEBUGGING - CHECK EVERYTHING
-            echo "🚨 EMERGENCY DEBUG: Certificate setup starting..."
-            echo "🔍 Current directory: $(pwd)"
-            echo "🔍 All .cer files in current directory:"
-            ls -la *.cer 2>/dev/null || echo "❌ No .cer files found"
-            echo "🔍 All files in current directory:"
-            ls -la | head -20
-            
-            # FIRST PRIORITY: Install Apple Distribution certificate if it exists
-            echo "🔍 PRIORITY: Checking for Apple Distribution certificate in repository..."
-            ls -la distribution.cer 2>/dev/null && echo "✅ distribution.cer found!" || echo "❌ distribution.cer not found"
-            
-            # Install Apple Distribution certificate IMMEDIATELY
-            if [ -f "auto_distribution.cer" ]; then
-              echo "🎉 FOUND AUTO-GENERATED APPLE DISTRIBUTION CERTIFICATE: auto_distribution.cer"
-              echo "🔐 Installing auto-generated Apple Distribution certificate..."
-              
-              # Import certificate
-              if security import auto_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A; then
-                echo "✅ Auto-generated Apple Distribution certificate installed!"
-                
-                # Import the matching private key
-                if [ -f "auto_distribution_private_key.pem" ]; then
-                  echo "🔐 Installing matching private key..."
-                  security import auto_distribution_private_key.pem -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ Matching private key installed!" || echo "⚠️ Private key import failed"
-                fi
-              fi
-              
-            elif [ -f "distribution.cer" ]; then
-              echo "🎉 FOUND APPLE DISTRIBUTION CERTIFICATE: distribution.cer"
-              echo "🔐 Installing Apple Distribution certificate..."
-              
-              # Debug the certificate file
-              echo "🔍 Certificate file info:"
-              file distribution.cer
-              ls -la distribution.cer
-              
-              # Try importing with debugging
-              echo "🔐 Attempting to import certificate..."
-              if security import distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A; then
-                echo "✅ Apple Distribution certificate installed successfully!"
-                
-                # Try to find and import the matching private key or P12
-                echo "🔍 Looking for matching private key or P12 file..."
-                if [ -f "distribution.p12" ]; then
-                  echo "🔐 Found distribution.p12, importing with password attempts..."
-                  for pwd in "" "Geok1800!" "password" "123456"; do
-                    if security import distribution.p12 -k ~/Library/Keychains/build.keychain -P "$pwd" -T /usr/bin/codesign -A 2>/dev/null; then
-                      echo "✅ distribution.p12 imported with password: '$pwd'"
-                      break
-                    fi
-                  done
-                elif [ -f "distribution.key" ]; then
-                  echo "🔐 Found distribution.key, importing..."
-                  security import distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ distribution.key imported" || echo "⚠️ distribution.key import failed"
-                elif [ -f "distribution.csr" ]; then
-                  echo "⚠️ Found distribution.csr but no matching private key"
-                  echo "📋 Need distribution.key file that was used to create distribution.csr"
-                elif [ -f "apple_distribution_private_key.pem" ]; then
-                  echo "🔐 Found apple_distribution_private_key.pem, importing..."
-                  security import apple_distribution_private_key.pem -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ apple_distribution_private_key.pem imported" || echo "⚠️ apple_distribution_private_key.pem import failed"
-                elif [ -f "ios_distribution.key" ]; then
-                  echo "🔐 Found ios_distribution.key, trying as fallback..."
-                  security import ios_distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -A 2>/dev/null && echo "✅ ios_distribution.key imported" || echo "⚠️ ios_distribution.key import failed"
-                else
-                  echo "⚠️ No matching private key or P12 found"
-                  echo "📋 NEEDED: Add distribution.key or distribution.p12 to repository"
-                fi
-                
-              else
-                echo "❌ Failed to import Apple Distribution certificate"
-              fi
-              
-              echo "🎯 APPLE DISTRIBUTION CERTIFICATE IMPORT COMPLETED!"
-            else
-              echo "⚠️ No Apple Distribution certificate found in repository"
-              echo "🔍 Current directory contents:"
-              ls -la
-            fi
-            
-            # Verify what certificates are now in keychain
-            echo "🔍 VERIFYING CERTIFICATES IN KEYCHAIN:"
-            security find-identity -v -p codesigning ~/Library/Keychains/build.keychain || echo "❌ Failed to list keychain identities"
-            
-            # Install the existing provisioning profile
-            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-              echo "📄 Installing existing provisioning profile..."
-              mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-              cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-              echo "✅ Provisioning profile installed"
-            else
-              echo "❌ Provisioning profile not found"
-              exit 1
-            fi
-            
-            # Install certificates using key and certificate files
-            echo "🔐 Installing certificates from key and certificate files..."
-            
-            # Install the private key first
-            if [ -f "ios_distribution.key" ]; then
-              echo "🔐 Installing private key (skip if already exists)..."
-              security import ios_distribution.key -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign 2>/dev/null && echo "✅ Private key installed" || echo "ℹ️ Private key already exists or import failed"
-            fi
-            
-            # Install the certificate (skip if already imported)
-            if [ -f "ios_distribution.cer" ]; then
-              echo "🔐 Installing certificate (skip if already exists)..."
-              security import ios_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign 2>/dev/null && echo "✅ Certificate installed" || echo "ℹ️ Certificate already exists or import failed"
-            fi
-            
-            # Automatically create proper App Store distribution certificate
-            echo "🔐 Creating App Store distribution certificate using API..."
-            
-            # AUTOMATIC CERTIFICATE CREATION BYPASS
-            echo "🚀 ATTEMPTING AUTOMATIC CERTIFICATE CREATION..."
-            echo "🔧 Step 1: Generate a consistent private key"
-            
-            # Create a deterministic private key using a seed based on repository
-            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | shasum -a 256 | cut -c1-32)
-            echo "🔍 Using repository seed: $REPO_SEED"
-            
-            # Generate private key with deterministic seed (this ensures same key every time)
-            echo "$REPO_SEED" | openssl dgst -sha256 -binary | openssl pkcs8 -inform DER -outform PEM -nocrypt -topk8 > temp_seed 2>/dev/null || echo "Using fallback method..."
-            
-            # Fallback: generate consistent key
-            openssl genrsa -out auto_distribution_private_key.pem 2048
-            echo "✅ Generated consistent private key"
-            
-            # Create CSR with this key
-            openssl req -new -key auto_distribution_private_key.pem -out auto_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=Jonatan Koren/OU=Development/CN=Apple Distribution: Jonatan Koren" 2>/dev/null
-            echo "✅ Generated CSR for automatic certificate"
-            
-            # Display CSR for manual certificate creation (backup plan)
-            echo "📋 AUTOMATIC CSR GENERATED:"
-            echo "=================================================="
-            cat auto_distribution.csr 2>/dev/null || echo "CSR generation failed"
-            echo "=================================================="
-            echo ""
-            echo "🎯 AUTOMATIC PLAN: Use this CSR to create certificate, then:"
-            echo "   1. This will generate the SAME private key every time"
-            echo "   2. Create certificate with this CSR in Apple Developer Console"
-            echo "   3. Add certificate as 'auto_distribution.cer' to repository"
-            echo "   4. Pipeline will automatically pair them"
-            
-            # Check if we have the required files
-            if [ -f "ios_distribution.csr" ] && [ -f "AuthKey_GA95D4VQYQ.p8" ]; then
-              echo "✅ Found CSR and API key files"
-              
-              # Read API credentials
-              ISSUER_ID=$(cat apple.id 2>/dev/null || echo "")
-              KEY_ID="GA95D4VQYQ"
-              
-              if [ -n "$ISSUER_ID" ]; then
-                echo "🔐 Using App Store Connect API to create distribution certificate..."
-                
-                # Install required tools
-                pip3 install requests cryptography PyJWT || echo "Installing with pip..."
-                
-                # Use the dedicated Python script for certificate creation
-                echo "🔍 Using dedicated Python script for certificate creation..."
-
-                # Run the certificate creation
-                ISSUER_ID="$ISSUER_ID" KEY_ID="$KEY_ID" python3 create_appstore_cert.py
-                
-                # Install the new certificate if created
-                if [ -f "ios_appstore_distribution.cer" ]; then
-                  echo "🔐 Installing new App Store distribution certificate..."
-                  security import ios_appstore_distribution.cer -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign
-                  echo "✅ App Store distribution certificate installed!"
-                else
-                  echo "⚠️ Certificate creation failed - API key may not have certificate management permissions"
-                  echo "🔧 SOLUTION: Pipeline will work with existing certificate for now"
-                  echo "📋 To fix permanently:"
-                  echo "   1. In Apple Developer Console, go to Users and Access"
-                  echo "   2. Select your API key (ZA7M4DJPV8)"
-                  echo "   3. Ensure 'Certificates, Identifiers & Profiles' permission is enabled"
-                  echo "   4. Or manually create 'Apple Distribution' certificate and update repository"
-                fi
-              else
-                echo "⚠️ Missing ISSUER_ID, using existing certificate"
-              fi
-            else
-              echo "⚠️ Missing required files, using existing certificate"
-            fi
-            
-            # MANUAL APPLE DISTRIBUTION CERTIFICATE CREATION
-            echo "🔧 API AUTHENTICATION FAILING - CREATING CERTIFICATE MANUALLY..."
-            echo "⚠️ Both Python and Fastlane API authentication failed with 401 errors"
-            echo "🎯 SOLUTION: Create Apple Distribution certificate manually and proceed"
-            
-            # Check if we already have a valid certificate pair
-            if [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
-              echo "✅ EXISTING CERTIFICATE FOUND: auto_distribution.cer + auto_distribution_private_key.pem"
-              echo "🎯 SKIPPING CSR GENERATION - Using existing certificate pair"
-              echo "💡 Apple Distribution certificates are valid for 1 year - no need to recreate"
-              echo "📅 Only generate new certificates when current one expires or gets revoked"
-              echo "🚀 Proceeding with existing certificate..."
-            else
-              echo "❌ No existing certificate pair found"
-              echo "🔐 Creating Apple Distribution certificate request in macOS pipeline..."
-            
-            # Use existing private key if available, otherwise generate a new one
-            if [ -f "apple_distribution_private_key.pem" ]; then
-              echo "✅ Using existing private key: apple_distribution_private_key.pem"
-            else
-              echo "🔐 Generating new private key for distribution certificate..."
-              openssl genrsa -out apple_distribution_private_key.pem 2048
-              echo "✅ Private key generated: apple_distribution_private_key.pem"
-              echo "📋 IMPORTANT: Save this private key! You'll need it for the certificate."
-            fi
-            
-            # Create certificate signing request for Apple Distribution
-            openssl req -new -key apple_distribution_private_key.pem -out apple_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=QA Online Ltd/OU=Mobile Development/CN=Apple Distribution: QA Online Ltd"
-            echo "✅ Certificate Signing Request generated: apple_distribution.csr"
-            
-            # Display the CSR content for easy copying
-            echo "📋 CERTIFICATE SIGNING REQUEST (CSR) CONTENT:"
-            echo "=================================================="
-            cat apple_distribution.csr
-            echo "=================================================="
-            echo ""
-            
-            # Create artifacts directory and copy files for download
-            mkdir -p /tmp/certificate-files
-            cp apple_distribution_private_key.pem /tmp/certificate-files/
-            cp apple_distribution.csr /tmp/certificate-files/
-            echo "✅ Certificate files saved to artifacts"
-            
-            echo "📋 NEXT STEPS TO CREATE APPLE DISTRIBUTION CERTIFICATE:"
-            echo "   1. Copy the CSR content above (between ==== lines)"
-            echo "   2. Go to https://developer.apple.com/account/resources/certificates/list"
-            echo "   3. Click '+' to create new certificate"
-            echo "   4. Select 'Apple Distribution' certificate type"
-            echo "   5. Paste the CSR content"
-            echo "   6. Download the generated .cer file"
-            echo "   7. Add the .cer file to your repository as 'apple_distribution.cer'"
-            echo "   8. Re-run the pipeline"
-            echo ""
-            echo "💾 Files available in CircleCI artifacts:"
-            echo "   - apple_distribution_private_key.pem (keep this secure!)"
-            echo "   - apple_distribution.csr (use this to create certificate)"
-            echo ""
-            echo "🎯 WORKAROUND: Proceeding with existing iPhone Distribution certificate"
-            echo "   This may work for some Apple Developer accounts"
-            echo "   Recent Apple changes sometimes accept iPhone Distribution for App Store uploads"
-            echo ""
-            echo "📱 PROCEEDING WITH UPLOAD - LET'S TEST IF IT WORKS!"
-            fi  # End of certificate creation conditional
-            
-            # Apple Distribution certificate already installed at the beginning of this step
-            echo "🔍 Apple Distribution certificate should now be available in keychain if it exists"
-            
-            # Skip base64 step - certificates already imported successfully
-            echo "✅ Certificates already imported successfully, skipping redundant base64 step"
-            
-            # Try P12 as backup if it exists
-            if [ -f "ios_distribution.p12" ]; then
-              echo "🔐 Trying P12 certificate as backup..."
-              
-              # Try different password combinations
-              PASSWORDS=("" "Geok1800!" "password" "123456" "admin" "ios" "apple" "developer")
-              
-              for PASSWORD in "${PASSWORDS[@]}"; do
-                echo "🔐 Trying password: ${PASSWORD:-'empty'}"
-                
-                # Try with build keychain
-                if security import ios_distribution.p12 -k ~/Library/Keychains/build.keychain -T /usr/bin/codesign -P "$PASSWORD" 2>/dev/null; then
-                  echo "✅ P12 certificate installed successfully with password: ${PASSWORD:-'empty'}"
-                  break
-                fi
-              done
-            fi
-            
-            # Check if installation was successful
-            echo "🔍 Checking available signing identities in build keychain..."
-            if ! security find-identity -v -p codesigning ~/Library/Keychains/build.keychain; then
-              echo "❌ Failed to list signing identities"
-              exit 1
-            fi
-            
-            # Get the actual signing identity - use simpler approach to avoid hanging
-            echo "🔍 Looking for App Store distribution certificate..."
-            
-            # First, save the output to a variable to avoid pipe hanging
-            IDENTITIES_OUTPUT=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain)
-            echo "🔍 All identities found:"
-            echo "$IDENTITIES_OUTPUT"
-            
-            # Now search for App Store distribution certificate (prioritize Apple Distribution)
-            # First try exact "Apple Distribution" match
-            SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Apple Distribution" | head -1 | cut -d'"' -f2 || echo "")
-            echo "🔍 Apple Distribution search result: '$SIGNING_IDENTITY'"
-            
-            # Also try distribution certificate variations
-            if [ -z "$SIGNING_IDENTITY" ]; then
-              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Distribution.*Apple|Apple.*Distribution" | head -1 | cut -d'"' -f2 || echo "")
-              echo "🔍 Apple Distribution variation search result: '$SIGNING_IDENTITY'"
-            fi
-            
-            # If no Apple Distribution found, try iPhone Distribution with App Store
-            if [ -z "$SIGNING_IDENTITY" ]; then
-              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "iPhone Distribution.*App Store" | head -1 | cut -d'"' -f2 || echo "")
-              echo "🔍 iPhone Distribution App Store search result: '$SIGNING_IDENTITY'"
-            fi
-            
-            # If no App Store certificate found, try any distribution certificate
-            if [ -z "$SIGNING_IDENTITY" ]; then
-              echo "🔍 Looking for general distribution certificate..."
-              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "iPhone Distribution" | head -1 | cut -d'"' -f2 || echo "")
-              echo "🔍 Distribution search result: '$SIGNING_IDENTITY'"
-            fi
-            
-            # If still no distribution certificate, try development certificate as last resort
-            if [ -z "$SIGNING_IDENTITY" ]; then
-              echo "🔍 Looking for development certificate..."
-              SIGNING_IDENTITY=$(echo "$IDENTITIES_OUTPUT" | grep -E "Apple Development" | head -1 | cut -d'"' -f2 || echo "")
-              echo "🔍 Development search result: '$SIGNING_IDENTITY'"
-            fi
-            
-            if [ -n "$SIGNING_IDENTITY" ]; then
-              echo "✅ Found signing certificate: $SIGNING_IDENTITY"
-              
-              # Check if it's a proper distribution certificate for App Store
-              if echo "$SIGNING_IDENTITY" | grep -q "iPhone Distribution.*App Store\|Apple Distribution"; then
-                echo "✅ Using App Store distribution certificate"
-              elif echo "$SIGNING_IDENTITY" | grep -q "iPhone Distribution"; then
-                echo "⚠️ Using general distribution certificate (may not work for App Store)"
-              else
-                echo "⚠️ Using development certificate (will not work for App Store upload)"
-              fi
-              
-              # Export the signing identity for the next step using CircleCI environment
-              echo "export SIGNING_IDENTITY=\"$SIGNING_IDENTITY\"" >> $BASH_ENV
-              echo "✅ Signing identity exported for next step"
-            else
-              echo "❌ No signing certificates found"
-              echo "⚠️ Will proceed with unsigned IPA creation"
-            fi
-            
-            echo "🔍 Certificate setup step completed successfully"
-      
-      - run:
-          name: "Create and sign IPA"
-          command: |
-            echo "🔐 Creating and signing IPA..."
-            
-            # Check if signing identity is available from previous step
-            if [ -n "$SIGNING_IDENTITY" ]; then
-              echo "✅ Signing identity available: $SIGNING_IDENTITY"
-            else
-              echo "⚠️ No signing identity from previous step, will try to find one"
-              # Try to find signing identity again (prioritize Apple Distribution)
-              SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Distribution" | head -1 | cut -d'"' -f2)
-              if [ -z "$SIGNING_IDENTITY" ]; then
-                SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution.*App Store" | head -1 | cut -d'"' -f2)
-              fi
-              if [ -z "$SIGNING_IDENTITY" ]; then
-                SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution" | head -1 | cut -d'"' -f2)
-              fi
-              if [ -z "$SIGNING_IDENTITY" ]; then
-                SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Development" | head -1 | cut -d'"' -f2)
-              fi
-              if [ -n "$SIGNING_IDENTITY" ]; then
-                echo "✅ Found signing identity: $SIGNING_IDENTITY"
-              else
-                echo "❌ No signing identity found"
-              fi
-            fi
-            
-            # Force the use of real iOS app build - disable test IPA creation
-            # Check if we have the basic iOS structure
-            if [ -d "ios" ] && [ -d "ios/App" ]; then
-              echo "📱 Found existing iOS app, setting up schemes..."
-              cd ios/App
-              
-              # First, ensure Capacitor dependencies are installed
-              echo "📦 Installing Capacitor dependencies..."
-              cd ../..
-              
-              # Install capacitor dependencies if not already present
-              if [ ! -f "node_modules/@capacitor/ios/package.json" ]; then
-                echo "📦 Installing missing Capacitor iOS dependency..."
-              npm install @capacitor/ios @capacitor/core
-              fi
-              
-              # Sync Capacitor (this updates the iOS project)
-              echo "🔄 Syncing Capacitor to iOS..."
-              npx cap sync ios
-              
-              # 🎯 CRITICAL: Fix the real iOS app's Info.plist and icons BEFORE building
-              echo "=================================================="
-              echo "🎯 FIXING REAL iOS APP FOR APPLE VALIDATION"
-              echo "=================================================="
-              
-              # Download and create icons for the REAL iOS app
-              echo "📥 Downloading company logo for real iOS app..."
-              LOGO_URL="https://lh3.googleusercontent.com/XOy7immRJBBfHefWlrJngHqwuIjeai8sBkF_Y6jm_Tie4rIP3nnHqkNCPVqJ5joro78wpYWwnaq_1z0_jxK-ag"
-              curl -L -o company_logo.png "$LOGO_URL"
-              
-              # Install ImageMagick if needed
-              if ! command -v convert >/dev/null 2>&1; then
-                echo "📦 Installing ImageMagick..."
-                brew install imagemagick
-              fi
-              
-              # Create icons for the REAL iOS app
-              echo "🎨 Creating app icons for REAL iOS project..."
-              convert company_logo.png -resize 120x120! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png
-              convert company_logo.png -resize 152x152! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x~ipad.png
-              convert company_logo.png -resize 167x167! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x~ipad.png
-              convert company_logo.png -resize 1024x1024! -background white -alpha remove ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
-              
-              # Update the REAL iOS app's Info.plist with proper icon references
-              echo "📝 Updating real iOS app Info.plist with icon references..."
-              # Add CFBundleIconName to the real Info.plist (simple approach)
-              echo "🔧 Adding CFBundleIconName to real iOS Info.plist..."
-              sed -i '' 's/<key>UIViewControllerBasedStatusBarAppearance<\/key>/<key>CFBundleIconName<\/key><string>AppIcon<\/string><key>UIViewControllerBasedStatusBarAppearance<\/key>/' ios/App/App/Info.plist
-              
-              echo "✅ Real iOS app updated with proper icons and Info.plist"
-              
-              # Return to iOS app directory
-              cd ios/App
-              
-              # Install CocoaPods dependencies
-                echo "📦 Installing CocoaPods dependencies..."
-              if [ -f "Podfile" ]; then
-                if [ ! -d "Pods" ]; then
-                  pod install --repo-update
-                else
-                  echo "✅ Pods already installed"
-                fi
-              else
-                echo "❌ Podfile not found!"
-                cd ../..
-                CREATE_TEST_IPA=true
-              fi
-              
-              # Create a scheme for the App target
-              echo "🔧 Creating scheme for App target..."
-              mkdir -p App.xcodeproj/xcshareddata/xcschemes
-              
-              # Create the scheme file using echo commands
-              echo '<?xml version="1.0" encoding="UTF-8"?>' > App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '<Scheme' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   LastUpgradeVersion = "1500"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   version = "1.7">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <BuildAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      parallelizeBuildables = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildImplicitDependencies = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      <BuildActionEntries>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         <BuildActionEntry' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            buildForTesting = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            buildForRunning = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            buildForProfiling = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            buildForArchiving = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            buildForAnalyzing = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '               BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '               BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '               BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '               BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '               ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         </BuildActionEntry>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      </BuildActionEntries>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </BuildAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <TestAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildConfiguration = "Debug"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      shouldUseLaunchSchemeArgsEnv = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      shouldAutocreateTestPlan = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </TestAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <LaunchAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildConfiguration = "Debug"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      launchStyle = "0"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      useCustomWorkingDirectory = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      ignoresPersistentStateOnLaunch = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      debugDocumentVersioning = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      debugServiceExtension = "internal"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      allowLocationSimulation = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      <BuildableProductRunnable' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         runnableDebuggingMode = "0">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      </BuildableProductRunnable>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </LaunchAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <ProfileAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildConfiguration = "Release"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      shouldUseLaunchSchemeArgsEnv = "YES"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      savedToolIdentifier = ""' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      useCustomWorkingDirectory = "NO"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      debugDocumentVersioning = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      <BuildableProductRunnable' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         runnableDebuggingMode = "0">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         <BuildableReference' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BuildableIdentifier = "primary"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BlueprintIdentifier = "504EC3031FED79650016851F"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BuildableName = "App.app"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            BlueprintName = "App"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '            ReferencedContainer = "container:App.xcodeproj">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '         </BuildableReference>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      </BuildableProductRunnable>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </ProfileAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <AnalyzeAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildConfiguration = "Debug">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </AnalyzeAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   <ArchiveAction' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      buildConfiguration = "Release"' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '      revealArchiveInOrganizer = "YES">' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '   </ArchiveAction>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              echo '</Scheme>' >> App.xcodeproj/xcshareddata/xcschemes/App.xcscheme
-              
-              echo "✅ Scheme created for App target"
-              
-              # List available schemes to verify
-              echo "🔍 Listing available schemes..."
-              xcodebuild -list -workspace App.xcworkspace
-              
-              # Build the iOS app with the new scheme
-              echo "🔨 Building iOS app with App scheme..."
-              xcodebuild clean -workspace App.xcworkspace -scheme App -configuration Release
-              
-              # Try to build archive with better error handling
-              echo "🔨 Creating archive for real iOS app..."
-              echo "🔍 Running xcodebuild archive command..."
-              
-              # First check if the project is properly set up
-              echo "🔍 Checking Xcode project structure..."
-              if [ ! -f "App.xcworkspace/contents.xcworkspacedata" ]; then
-                echo "❌ Workspace file missing or corrupted"
-                cd ../..
-                CREATE_TEST_IPA=true
-              else
-                echo "✅ Workspace file exists"
-                
-                # Check if scheme exists
-                if [ ! -f "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme" ]; then
-                  echo "⚠️ App scheme missing, but proceeding with build"
-                fi
-                
-                # Run xcodebuild with improved settings and better error reporting
-                echo "🔨 Building with improved settings..."
-                echo "🔍 Archive command details:"
-                echo "  Workspace: App.xcworkspace"
-                echo "  Scheme: App"
-                echo "  Configuration: Release"
-                echo "  Destination: generic/platform=iOS"
-                echo "  Code Signing: Apple Distribution with Team ID"
-                
-                # Configure project settings for proper code signing
-                echo "🔧 Configuring project for App Store signing..."
-                
-                # Extract the actual provisioning profile UUID from the .mobileprovision file
-                cd ../../  # Go to project root to find the .mobileprovision file
-                echo "🔍 Extracting provisioning profile UUID from QAOnlineAppStoreProfile.mobileprovision..."
-                if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                  # Extract the profile UUID (more reliable than name)
-                  PROFILE_UUID=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract UUID xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
-                  if [ -n "$PROFILE_UUID" ]; then
-                    echo "✅ Found provisioning profile UUID: $PROFILE_UUID"
-                    PROFILE_SPECIFIER="$PROFILE_UUID"
-                  else
-                    echo "⚠️ Could not extract profile UUID, trying name instead"
-                    PROFILE_NAME=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | plutil -extract Name xml1 - -o - | sed -n 's/<string>\(.*\)<\/string>/\1/p' | head -1)
-                    if [ -n "$PROFILE_NAME" ]; then
-                      echo "✅ Found provisioning profile name: $PROFILE_NAME"
-                      PROFILE_SPECIFIER="$PROFILE_NAME"
-                    else
-                      echo "⚠️ Could not extract profile info, using filename fallback"
-                      PROFILE_SPECIFIER="QAOnlineAppStoreProfile"
-                    fi
-                  fi
-                else
-                  echo "⚠️ QAOnlineAppStoreProfile.mobileprovision not found, using default name"
-                  PROFILE_SPECIFIER="QA-Online-AppStore"
-                fi
-                cd ios/App  # Go back to iOS project directory
-                
-                # 🔧 CRITICAL FIX: Use MANUAL signing with explicit provisioning profile
-                echo "🔧 Configuring MANUAL signing with explicit provisioning profile..."
-                
-                # Set development team
-                sed -i '' 's/DEVELOPMENT_TEAM = [^;]*;/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set development team"
-                
-                # Force MANUAL code signing (automatic signing requires Apple ID login)
-                sed -i '' 's/CODE_SIGN_STYLE = [^;]*;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set code sign style to Manual"
-                
-                # Set explicit provisioning profile using the UUID we extracted
-                sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile specifier"
-                sed -i '' 's/PROVISIONING_PROFILE = [^;]*;//g' App.xcodeproj/project.pbxproj || echo "⚠️ Could not remove existing provisioning profile"
-                
-                # Add the provisioning profile UUID to all Release configurations
-                if [ -n "$PROFILE_UUID" ]; then
-                  echo "🔧 Setting provisioning profile UUID: $PROFILE_UUID"
-                  # Find Release configurations and add provisioning profile
-                  sed -i '' '/name = Release;/,/};/ s/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'"; PROVISIONING_PROFILE = "'$PROFILE_UUID'";/' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile UUID"
-                else
-                  echo "⚠️ No profile UUID available, using profile name"
-                  sed -i '' '/name = Release;/,/};/ s/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'";/DEVELOPMENT_TEAM = "'$APPLE_TEAM_ID'"; PROVISIONING_PROFILE_SPECIFIER = "QAOnlineAppStoreProfile";/' App.xcodeproj/project.pbxproj || echo "⚠️ Could not set provisioning profile specifier"
-                fi
-                
-                echo "✅ Project configured for MANUAL signing with explicit provisioning profile"
-                
-                # Build with minimal settings and capture errors for analysis
-                echo "🔍 Running xcodebuild archive with error capture..."
-                set +e  # Don't exit on error
-                
-                # 🔧 CRITICAL: Use MANUAL signing without automatic provisioning updates
-                # This avoids the "No Accounts" error that requires Apple ID login
-                echo "🔧 Building with MANUAL signing and explicit provisioning profile..."
-                if [ -n "$PROFILE_UUID" ]; then
-                  echo "🔧 Using provisioning profile UUID: $PROFILE_UUID"
-                  BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE="$PROFILE_UUID" CODE_SIGN_STYLE=Manual IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
-                else
-                  echo "🔧 Using provisioning profile specifier: $PROFILE_SPECIFIER"
-                  BUILD_OUTPUT=$(xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER" CODE_SIGN_STYLE=Manual IPHONEOS_DEPLOYMENT_TARGET="13.0" 2>&1 | tee /dev/stderr)
-                fi
-              BUILD_EXIT_CODE=$?
-                set -e  # Re-enable exit on error
-                
-                if [ $BUILD_EXIT_CODE -ne 0 ]; then
-                  echo "🔍 Build failed, analyzing errors..."
-                  echo "📋 Error summary from build output:"
-                  echo "$BUILD_OUTPUT" | grep -E "(error:|Error:|ERROR:|failure:|FAILURE:|❌|✗)" | head -10 || echo "No clear error patterns found"
-                fi
-                
-                echo "🔍 Build completed with exit code: $BUILD_EXIT_CODE"
-              fi
-              
-              echo "🔍 xcodebuild exit code: $BUILD_EXIT_CODE"
-              
-              if [ $BUILD_EXIT_CODE -eq 0 ]; then
-                echo "✅ Archive created successfully for real iOS app"
-                
-                # Extract IPA from archive
-                echo "📦 Extracting IPA from real iOS app archive..."
-                echo "🔍 Current directory: $(pwd)"
-                echo "🔍 Archive location: $(ls -la App.xcarchive 2>/dev/null || echo 'Archive not found in current directory')"
-                
-                if [ -d "App.xcarchive" ]; then
-                  echo "✅ Archive found! Contents:"
-                  ls -la App.xcarchive/
-                  
-                  # Create export options for development distribution (no signing)
-                  echo "📦 Creating export options for real iOS app..."
-                  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-real.plist
-                  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-real.plist
-                  printf '%s\n' '<plist version="1.0">' >> exportOptions-real.plist
-                  printf '%s\n' '<dict>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>method</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>app-store</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>manual</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>teamID</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <string>'"$APPLE_TEAM_ID"'</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>provisioningProfiles</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <dict>' >> exportOptions-real.plist
-                  printf '%s\n' '        <key>com.qaonline.app</key>' >> exportOptions-real.plist
-                  printf '%s\n' '        <string>QA-Online-AppStore</string>' >> exportOptions-real.plist
-                  printf '%s\n' '    </dict>' >> exportOptions-real.plist
-                  printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-real.plist
-                  printf '%s\n' '    <false/>' >> exportOptions-real.plist
-                  printf '%s\n' '</dict>' >> exportOptions-real.plist
-                  printf '%s\n' '</plist>' >> exportOptions-real.plist
-                  
-                  echo "📦 Exporting real iOS app to IPA..."
-                  set +e  # Don't exit on export failure
-                  EXPORT_OUTPUT=$(xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-real.plist 2>&1)
-                    EXPORT_EXIT_CODE=$?
-                  set -e  # Re-enable exit on error
-                    echo "🔍 Export exit code: $EXPORT_EXIT_CODE"
-                    if [ $EXPORT_EXIT_CODE -ne 0 ]; then
-                      echo "❌ Export failed with output:"
-                      echo "$EXPORT_OUTPUT"
-                    echo "🔧 Extracting app directly from archive instead of using xcodebuild export..."
-                    
-                    # Extract the App.app directly from the archive
-                    echo "🔍 Looking for App.app in archive..."
-                    find App.xcarchive -name "*.app" -type d || echo "No .app found in archive"
-                    
-                    APP_PATH=$(find App.xcarchive -name "App.app" -type d | head -1)
-                    if [ -n "$APP_PATH" ] && [ -d "$APP_PATH" ]; then
-                      echo "✅ Found app at: $APP_PATH"
-                      echo "🔧 Creating IPA manually from archive..."
-                      
-                      # Clean any existing Payload
-                      rm -rf Payload/
-                      mkdir -p Payload
-                      
-                      # Copy the app
-                      cp -R "$APP_PATH" Payload/
-                      echo "✅ Copied app to Payload directory"
-                      
-                      # List contents to verify
-                      echo "🔍 Payload contents:"
-                      ls -la Payload/
-                      ls -la Payload/App.app/ | head -10
-                      
-                      # Create IPA
-                      zip -r App.ipa Payload/
-                      echo "✅ Created IPA manually from archive contents"
-                      
-                      if [ -f "App.ipa" ]; then
-                        echo "✅ IPA file created successfully: $(ls -la App.ipa)"
-                      else
-                        echo "❌ Failed to create IPA file"
-                    fi
-                  else
-                      echo "❌ Could not find App.app in archive"
-                      echo "🔍 Complete archive structure:"
-                      find App.xcarchive -type f | head -20
-                    fi
-                    
-                    echo "🔨 Skipping problematic xcodebuild export, using direct manual extraction..."
-                    echo "📦 Extracting App.app directly from archive..."
-                    
-                    # Manual extraction - more reliable than xcodebuild export
-                    echo "📦 Creating Payload directory and copying app..."
-                    mkdir -p Payload
-                    cp -r App.xcarchive/Products/Applications/App.app Payload/
-                    
-                    echo "🔐 Embedding provisioning profile in real iOS app..."
-                    # Go back to project root to find provisioning profile
-                    echo "🔍 Current directory before navigation: $(pwd)"
-                    cd ../..
-                    echo "🔍 Now in directory: $(pwd)"
-                    echo "🔍 Looking for provisioning profile files..."
-                    ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found in $(pwd)"
-                    
-                    if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                      echo "✅ Found provisioning profile, embedding it..."
-                      cp QAOnlineAppStoreProfile.mobileprovision ios/App/Payload/App.app/embedded.mobileprovision
-                      echo "✅ Provisioning profile embedded successfully"
-                      echo "🔍 Verifying embedded profile: $(ls -la ios/App/Payload/App.app/embedded.mobileprovision)"
-                    else
-                      echo "❌ Provisioning profile not found in project root!"
-                      echo "🔍 Contents of current directory:"
-                      ls -la
-                    fi
-                    
-                    # Go back to ios/App directory
-                    echo "🔄 Returning to ios/App directory..."
-                    cd ios/App
-                    echo "🔍 Back in directory: $(pwd)"
-                    
-                    echo "🔐 Code signing the real iOS app with embedded provisioning profile..."
-                    
-                    # Get the signing identity from the previous step
-                    SIGNING_IDENTITY=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "iPhone Distribution|Apple Development" | head -1 | cut -d'"' -f2)
-                    
-                    if [ -n "$SIGNING_IDENTITY" ]; then
-                      echo "🔐 Using signing identity: $SIGNING_IDENTITY"
-                      
-                      # Try to sign with timeout to avoid hanging
-                      echo "🔐 Attempting to sign main application bundle..."
-                      
-                      # Use timeout to prevent hanging (30 seconds) - install coreutils for timeout
-                      brew install coreutils 2>/dev/null || echo "coreutils already installed"
-                      if gtimeout 30 codesign --force --sign "$SIGNING_IDENTITY" Payload/App.app; then
-                        echo "✅ Main app signed successfully"
-                      else
-                        echo "❌ Code signing failed or timed out, continuing with unsigned IPA"
-                        echo "⚠️ IPA will be unsigned but should still be valid for upload"
-                      fi
-                    else
-                      echo "❌ No signing identity found, skipping code signing"
-                      echo "⚠️ IPA will be unsigned"
-                    fi
-                    
-                    # Verify main app signature only
-                    echo "🔍 Verifying main app signature..."
-                    codesign --verify --verbose Payload/App.app || echo "❌ Main app signature verification failed"
-                    
-                    echo "📦 Creating final signed IPA with embedded provisioning profile..."
-                    zip -r App.ipa Payload/
-                    rm -rf Payload
-                    
-                    if [ -f "App.ipa" ]; then
-                      echo "✅ Real iOS app manual IPA extraction successful: $(ls -la App.ipa)"
-                      # Copy IPA to project root
-                      cp App.ipa ../../App.ipa
-                      echo "✅ Real iOS app IPA copied to project root"
-                      REAL_IPA_CREATED=true
-                    else
-                      echo "❌ Real iOS app manual extraction failed"
-                      REAL_IPA_CREATED=false
-                    fi
-                  fi
-                  
-                  # Check if IPA was created (look for any .ipa file)
-                  echo "🔍 Looking for created IPA files..."
-                  ls -la *.ipa 2>/dev/null || echo "No IPA files found yet"
-                  
-                  IPA_FILE=$(find . -name "*.ipa" -type f | head -1)
-                  if [ -n "$IPA_FILE" ]; then
-                    echo "✅ Found exported IPA: $IPA_FILE"
-                    # Move it to standard name if needed
-                    if [ "$IPA_FILE" != "./App.ipa" ]; then
-                      mv "$IPA_FILE" App.ipa
-                      echo "📱 Renamed IPA to App.ipa"
-                    fi
-                    echo "✅ Real iOS app IPA extracted successfully: $(ls -la App.ipa)"
-                    # Copy IPA to project root
-                    cp App.ipa ../../App.ipa
-                    echo "✅ Real iOS app IPA copied to project root"
-                    REAL_IPA_CREATED=true
-                  else
-                    echo "❌ Real iOS app IPA not found after manual extraction"
-                    REAL_IPA_CREATED=false
-                  fi
-                else
-                  echo "❌ Real iOS app archive not found in current directory"
-                  echo "🔍 Looking for archive in parent directories..."
-                  find . -name "App.xcarchive" -type d 2>/dev/null || echo "No archive found"
-                  REAL_IPA_CREATED=false
-                fi
-              else
-                echo "❌ Failed to create real iOS app archive with exit code $BUILD_EXIT_CODE"
-                echo "🔧 Real iOS build failed, creating fallback test IPA..."
-                
-                # Navigate back to project root
-                cd ../../..  # Go back from ios/App to project root
-                
-                # Ensure we're in the actual project directory, not user home
-                if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ]; then
-                  echo "🔄 Navigating to actual project directory..."
-                  cd project
-                fi
-                
-                echo "🔍 Project root directory: $(pwd)"
-                
-                # Set flags for test IPA creation
-                REAL_IPA_CREATED=false
-                CREATE_TEST_IPA=true
-                
-                echo "🔧 Will create test IPA as fallback for failed real build"
-              fi
-              
-              # Already in project root from fallback logic
-              
-              # Use real iOS app if successfully created
-              echo "✅ Real iOS app build process completed"
-              
-              # Check if we got a real iOS app IPA
-              if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
-                echo "✅ Found real iOS app IPA in project root: $(ls -la App.ipa)"
-                echo "🎉 Using real iOS app for App Store Connect upload!"
-                
-                # Validate the real iOS app IPA
-                echo "🔍 Validating real iOS app IPA..."
-                if [ -f "App.ipa" ]; then
-                  # Extract and check the executable
-                  mkdir -p temp_validation
-                  cd temp_validation
-                  unzip -q ../App.ipa
-                  if [ -f "Payload/App.app/App" ]; then
-                    EXECUTABLE_TYPE=$(file Payload/App.app/App)
-                    echo "🔍 Executable type: $EXECUTABLE_TYPE"
-                    if echo "$EXECUTABLE_TYPE" | grep -q "Mach-O"; then
-                      echo "✅ Real iOS app has valid Mach-O executable"
-                      REAL_IPA_VALID=true
-                    else
-                      echo "❌ Real iOS app does not have valid Mach-O executable"
-                      REAL_IPA_VALID=false
-                    fi
-                  else
-                    echo "❌ Real iOS app executable not found"
-                    REAL_IPA_VALID=false
-                  fi
-                  cd ..
-                  rm -rf temp_validation
-                else
-                  echo "❌ Real iOS app IPA not found for validation"
-                  REAL_IPA_VALID=false
-                fi
-                
-                if [ "$REAL_IPA_VALID" = "false" ]; then
-                  echo "❌ Real iOS app validation failed, will use existing IPA with proper executable fix..."
-                  # Instead of creating test IPA, fix the existing one
-                  CREATE_TEST_IPA=false
-                  echo "🔧 Attempting to fix existing IPA executable..."
-                  
-                  # Extract, fix, and repackage the existing IPA
-                  mkdir -p fix_ipa_temp
-                  cd fix_ipa_temp
-                  unzip -q ../App.ipa
-                  
-                  # Check if it has the right structure but wrong executable
-                  if [ -d "Payload/App.app" ]; then
-                    echo "✅ IPA has correct structure, fixing executable..."
-                    
-                    # Create proper Mach-O executable using simpler approach
-                    echo "Creating minimal iOS executable..."
-                    printf '#include <stdio.h>\nint main() {\n    printf("QA-Online iOS App\\n");\n    return 0;\n}' > /tmp/minimal_app.c
-                    if clang -target arm64-apple-ios12.0 -arch arm64 /tmp/minimal_app.c -o Payload/App.app/App -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk 2>/dev/null; then
-                      echo "✅ Created ARM64 iOS executable"
-                    else
-                      echo "⚠️ ARM64 compilation failed, using host binary as fallback"
-                      clang /tmp/minimal_app.c -o Payload/App.app/App
-                    fi
-                    rm -f /tmp/minimal_app.c
-                    chmod +x Payload/App.app/App
-                    
-                    # Ensure provisioning profile is in place
-                    if [ ! -f "Payload/App.app/embedded.mobileprovision" ] && [ -f "../../../QAOnlineAppStoreProfile.mobileprovision" ]; then
-                      cp ../../../QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-                      echo "✅ Added missing provisioning profile to fixed IPA"
-                    fi
-                    
-                    # Sign frameworks and main app in the fixed IPA
-                    echo "🔐 Signing frameworks in fixed IPA..."
-                    if [ -d "Payload/App.app/Frameworks" ]; then
-                      for framework in Payload/App.app/Frameworks/*.framework; do
-                        if [ -d "$framework" ]; then
-                          framework_name=$(basename "$framework")
-                          echo "🔐 Signing framework: $framework_name"
-                          # Get certificate hash from keychain
-                          CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
-                          if [ -n "$CERT_HASH" ]; then
-                            codesign --force --sign "$CERT_HASH" "$framework" && echo "✅ Signed $framework_name" || echo "⚠️ Failed to sign $framework_name"
-                          fi
-                        fi
-                      done
-                    fi
-                    
-                    # Sign main app
-                    echo "🔐 Signing main app in fixed IPA..."
-                    if [ -n "$CERT_HASH" ]; then
-                      codesign --force --sign "$CERT_HASH" Payload/App.app && echo "✅ Signed main app" || echo "⚠️ Failed to sign main app"
-                    fi
-                    
-                    # Repackage the IPA
-                    zip -r ../App-fixed.ipa Payload/
-                    cd ..
-                    mv App-fixed.ipa App.ipa
-                    echo "✅ Fixed IPA with proper executable"
-                    rm -rf fix_ipa_temp
-                  else
-                    echo "❌ IPA structure is wrong, falling back to test IPA creation"
-                    cd ..
-                    rm -rf fix_ipa_temp
-                  CREATE_TEST_IPA=true
-                  fi
-                fi
-              else
-                echo "❌ Real iOS app IPA not found, creating test IPA..."
-            
-            # Ensure we're in the correct project directory
-            echo "🔍 Current working directory: $(pwd)"
-            if [[ "$(pwd)" == *"/Users/distiller" ]] && [ -d "project" ] && [[ "$(pwd)" != *"/project" ]]; then
-              echo "🔄 Moving to project directory..."
-              cd project
-              echo "🔍 Now in project directory: $(pwd)"
-            fi
-            
-            # Clean up any existing Payload directory to avoid bundle collisions
-            echo "🧹 Cleaning up existing Payload directory..."
-            rm -rf Payload/
-            
-            # Only create test IPA if real IPA failed
-            if [ "$REAL_IPA_CREATED" = "true" ]; then
-              echo "✅ Real iOS app IPA created successfully, skipping test IPA"
-              CREATE_TEST_IPA=false
-            else
-              echo "🚨 Real IPA creation failed, forcing test IPA creation for validation fixes"
-              CREATE_TEST_IPA=true
-            fi
-              
-              # Go back to the iOS project and fix it
-              cd ios/App
-              
-              # Apply build fixes
-              echo "🔧 Applying iOS build fixes..."
-              
-              # Fix deployment target to iOS 13.0 (required by Capacitor)
-              echo "🔧 Setting deployment target to iOS 13.0 (required by Capacitor)..."
-              sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]*\.[0-9]*/IPHONEOS_DEPLOYMENT_TARGET = 13.0/g' App.xcodeproj/project.pbxproj || echo "Could not update deployment target"
-              
-              # Disable code signing completely  
-              sed -i '' 's/CODE_SIGN_STYLE = [^;]*/CODE_SIGN_STYLE = Manual/g' App.xcodeproj/project.pbxproj || echo "Could not update code sign style"
-              sed -i '' 's/CODE_SIGNING_REQUIRED = [^;]*/CODE_SIGNING_REQUIRED = NO/g' App.xcodeproj/project.pbxproj || echo "Could not disable code signing"
-              
-              # Retry the build with aggressive fixes
-              echo "🔧 Retrying iOS build with fixes..."
-              set +e
-              xcodebuild archive -workspace App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath App.xcarchive CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="13.0" DEVELOPMENT_TEAM="" PROVISIONING_PROFILE="" CODE_SIGN_IDENTITY="" 2>&1 | tee /dev/stderr
-              FIXED_BUILD_EXIT_CODE=$?
-              set -e
-              
-              if [ $FIXED_BUILD_EXIT_CODE -eq 0 ]; then
-                echo "✅ iOS build fixed and succeeded!"
-                # Extract IPA from the successful build
-                echo "📦 Extracting IPA from fixed iOS build..."
-                if [ -d "App.xcarchive" ]; then
-                  # Create simple export options using printf to avoid YAML issues
-                  printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions-simple.plist
-                  printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions-simple.plist
-                  printf '%s\n' '<plist version="1.0">' >> exportOptions-simple.plist
-                  printf '%s\n' '<dict>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <key>method</key>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <string>development</string>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <key>signingStyle</key>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <string>manual</string>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <key>stripSwiftSymbols</key>' >> exportOptions-simple.plist
-                  printf '%s\n' '    <true/>' >> exportOptions-simple.plist
-                  printf '%s\n' '</dict>' >> exportOptions-simple.plist
-                  printf '%s\n' '</plist>' >> exportOptions-simple.plist
-                  
-                  # Export the archive to IPA
-                  xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist exportOptions-simple.plist || echo "Export failed, but continuing"
-                  
-                  # Move the IPA to project root
-                  find . -name "*.ipa" -exec mv {} ../../App.ipa \;
-                  cd ../..
-                  
-                  if [ -f "App.ipa" ]; then
-                    echo "✅ Successfully created real iOS app IPA!"
-                    REAL_IPA_CREATED=true
-                  else
-                    echo "❌ CRITICAL: Failed to export IPA from fixed build"
-                    exit 1
-                  fi
-                else
-                  echo "❌ CRITICAL: No archive created even after fixes"
-                  exit 1
-                fi
-              else
-                echo "❌ CRITICAL: iOS build still failing after all fixes"
-                echo "This requires manual inspection of the iOS project"
-                exit 1
-              fi
-            fi
-            
-            # 🔧 ENABLED: Test IPA creation section (fallback when real build fails)
-            if [ "$CREATE_TEST_IPA" = "true" ]; then
-              echo "=================================================="
-              echo "🔐 CREATING TEST IPA WITH VALIDATION FIXES"
-              echo "=================================================="
-              echo "🔐 Creating robust test IPA structure with a valid Mach-O executable..."
-              
-              # Ensure we're in the project root directory
-              echo "🔍 Current directory: $(pwd)"
-              echo "🔍 Project contents:"
-              ls -la
-              
-              # Create a complete iOS-compliant test IPA structure
-              mkdir -p Payload/App.app
-              
-              # Create comprehensive Info.plist with all required Apple metadata
-              echo "Creating complete Info.plist..."
-              # Create comprehensive Info.plist with all required Apple metadata using printf
-              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/Info.plist
-              printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> Payload/App.app/Info.plist
-              printf '%s\n' '<plist version="1.0">' >> Payload/App.app/Info.plist
-              printf '%s\n' '<dict>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleIdentifier</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>com.qaonline.app</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleName</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>QA-Online</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleDisplayName</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>QA-Online</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleVersion</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>1.0</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleShortVersionString</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>1.0</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleExecutable</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>App</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundleIconName</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>AppIcon</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>CFBundlePackageType</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>APPL</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>MinimumOSVersion</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <string>13.0</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>UIDeviceFamily</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <array>' >> Payload/App.app/Info.plist
-              printf '%s\n' '        <integer>1</integer>' >> Payload/App.app/Info.plist
-              printf '%s\n' '        <integer>2</integer>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    </array>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>UIRequiredDeviceCapabilities</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <array>' >> Payload/App.app/Info.plist
-              printf '%s\n' '        <string>arm64</string>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    </array>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <key>LSRequiresIPhoneOS</key>' >> Payload/App.app/Info.plist
-              printf '%s\n' '    <true/>' >> Payload/App.app/Info.plist
-              printf '%s\n' '</dict>' >> Payload/App.app/Info.plist
-              printf '%s\n' '</plist>' >> Payload/App.app/Info.plist
-              
-              # Create a proper executable (not just a bash script)
-              echo "🔐 Creating proper iOS Mach-O executable..."
-              
-              # Use the existing App executable from the Payload directory if it exists
-              if [ -f "Payload/App.app/App" ]; then
-                echo "✅ Using existing App executable from Payload directory"
-                EXECUTABLE_TYPE=$(file Payload/App.app/App)
-                echo "🔍 Existing executable type: $EXECUTABLE_TYPE"
-                if echo "$EXECUTABLE_TYPE" | grep -q "Mach-O"; then
-                  echo "✅ Existing executable is already a valid Mach-O binary"
-                else
-                  echo "⚠️ Existing executable is not Mach-O, will create minimal one"
-                  # Create a minimal Mach-O executable using simpler approach
-                  echo "Creating minimal iOS executable..."
-                  printf '#include <stdio.h>\nint main() {\n    printf("QA-Online iOS App\\n");\n    return 0;\n}' > /tmp/minimal_app.c
-                  if clang -target arm64-apple-ios12.0 -arch arm64 /tmp/minimal_app.c -o Payload/App.app/App -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk 2>/dev/null; then
-                    echo "✅ Created ARM64 iOS executable"
-                  else
-                    echo "⚠️ ARM64 compilation failed, using host binary as fallback"
-                    clang /tmp/minimal_app.c -o Payload/App.app/App
-                  fi
-                  rm -f /tmp/minimal_app.c
-                fi
-              else
-                echo "❌ No existing executable found, creating minimal Mach-O binary"
-                # Create a minimal Mach-O executable using simpler approach
-                echo "Creating minimal iOS executable..."
-                printf '#include <stdio.h>\nint main() {\n    printf("QA-Online iOS App\\n");\n    return 0;\n}' > /tmp/minimal_app.c
-                if clang -target arm64-apple-ios12.0 -arch arm64 /tmp/minimal_app.c -o Payload/App.app/App -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk 2>/dev/null; then
-                  echo "✅ Created ARM64 iOS executable"
-                else
-                  echo "⚠️ ARM64 compilation failed, using host binary as fallback"
-                  clang /tmp/minimal_app.c -o Payload/App.app/App
-                fi
-                rm -f /tmp/minimal_app.c
-              fi
-              
-              # Verify the executable is now Mach-O
-              FINAL_EXECUTABLE_TYPE=$(file Payload/App.app/App)
-              echo "🔍 Final executable type: $FINAL_EXECUTABLE_TYPE"
-              if echo "$FINAL_EXECUTABLE_TYPE" | grep -q "Mach-O"; then
-                echo "✅ Successfully created Mach-O executable"
-              else
-                echo "❌ Failed to create Mach-O executable, this IPA will be rejected"
-              fi
-              
-              chmod +x Payload/App.app/App
-              
-              # Create required app icons using your company logo
-              echo "=================================================="
-              echo "🎨 CREATING APP ICONS WITH YOUR COMPANY LOGO"
-              echo "=================================================="
-              echo "🎨 Creating app icons using your company logo..."
-              
-              # Download your company logo
-              LOGO_URL="https://lh3.googleusercontent.com/XOy7immRJBBfHefWlrJngHqwuIjeai8sBkF_Y6jm_Tie4rIP3nnHqkNCPVqJ5joro78wpYWwnaq_1z0_jxK-ag"
-              
-              echo "📥 Downloading company logo..."
-              if curl -L -o company_logo.png "$LOGO_URL"; then
-                echo "✅ Company logo downloaded successfully"
-                ls -la company_logo.png
-                
-                # Install ImageMagick if not available
-                if ! command -v convert >/dev/null 2>&1; then
-                  echo "📦 Installing ImageMagick..."
-                  brew install imagemagick || echo "⚠️ Failed to install ImageMagick, using direct copy"
-                fi
-                
-                # 🎯 CRITICAL APPLE VALIDATION FIX - Create icons with EXACT dimensions Apple expects
-                if command -v convert >/dev/null 2>&1; then
-                  echo "🎯 APPLE VALIDATION FIX: Creating icons with exact pixel dimensions..."
-                  
-                  # 🔥 MOST CRITICAL: 120x120 iPhone icon (primary validation error)
-                  echo "📱 Creating 120x120 iPhone icon - PRIMARY VALIDATION REQUIREMENT"
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon60x60@2x.png
-                  # Create multiple variations that Apple might look for
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-60@2x.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/Icon-120.png
-                  convert company_logo.png -resize 120x120! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-120.png
-                  
-                  # ✅ EXACT 152x152 iPad icon (second validation error)
-                  echo "📱 Creating 152x152 iPad icon - IPAD VALIDATION REQUIREMENT"  
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-76@2x.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/Icon-152.png
-                  convert company_logo.png -resize 152x152! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-152.png
-                  
-                  # ✅ EXACT 167x167 iPad Pro icon (third validation error)
-                  echo "📱 Creating 167x167 iPad Pro icon - IPAD PRO VALIDATION REQUIREMENT"
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-83.5@2x.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/Icon-167.png
-                  convert company_logo.png -resize 167x167! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-167.png
-                  
-                  # ⭐ CRITICAL: 1024x1024 App Store icon (often missing cause of validation failure)
-                  echo "⭐ Creating 1024x1024 App Store icon - CRITICAL FOR APPLE VALIDATION"
-                  convert company_logo.png -resize 1024x1024! -background white -alpha remove -quality 100 Payload/App.app/AppIcon-1024.png
-                  convert company_logo.png -resize 1024x1024! -background white -alpha remove -quality 100 Payload/App.app/Icon-1024.png
-                  
-                  # 🔄 LEGACY iOS ICONS for backward compatibility
-                  echo "🔄 Creating legacy iOS icons for maximum Apple compatibility..."
-                  convert company_logo.png -resize 57x57! -background white -alpha remove -quality 100 Payload/App.app/Icon.png
-                  convert company_logo.png -resize 114x114! -background white -alpha remove -quality 100 Payload/App.app/Icon@2x.png
-                  convert company_logo.png -resize 72x72! -background white -alpha remove -quality 100 Payload/App.app/Icon-72.png
-                  convert company_logo.png -resize 144x144! -background white -alpha remove -quality 100 Payload/App.app/Icon-72@2x.png
-                  
-                  echo "✅ Created app icons using your company logo with ImageMagick"
-                  
-                  # Create comprehensive Assets.xcassets structure for icons
-                  echo "📱 Creating comprehensive Assets.xcassets for proper icon management..."
-                  mkdir -p Payload/App.app/Assets.xcassets/AppIcon.appiconset
-                  
-                  # Copy icons to asset catalog with Apple's expected naming
-                  cp Payload/App.app/AppIcon60x60@2x.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon60x60@2x.png
-                  cp Payload/App.app/AppIcon76x76@2x~ipad.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon76x76@2x.png  
-                  cp Payload/App.app/AppIcon83.5x83.5@2x~ipad.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon83.5x83.5@2x.png
-                  cp Payload/App.app/AppIcon-1024.png Payload/App.app/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
-                  
-                  # Create comprehensive Contents.json for the icon set with all required entries INCLUDING 1024x1024
-                  # Create comprehensive Contents.json for the icon set using printf
-                  printf '%s\n' '{' > Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '  "images" : [' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "filename" : "AppIcon60x60@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "idiom" : "iphone",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "size" : "60x60"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "filename" : "AppIcon76x76@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "idiom" : "ipad",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "size" : "76x76"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "filename" : "AppIcon83.5x83.5@2x.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "idiom" : "ipad",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "scale" : "2x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "size" : "83.5x83.5"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    },' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "filename" : "AppIcon-1024.png",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "idiom" : "ios-marketing",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "scale" : "1x",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '      "size" : "1024x1024"' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    }' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '  ],' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '  "info" : {' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    "author" : "xcode",' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '    "version" : 1' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '  }' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  printf '%s\n' '}' >> Payload/App.app/Assets.xcassets/AppIcon.appiconset/Contents.json
-                  
-                  # Create root Contents.json for Assets.xcassets
-                  # Create root Contents.json for Assets.xcassets using printf
-                  printf '%s\n' '{' > Payload/App.app/Assets.xcassets/Contents.json
-                  printf '%s\n' '  "info" : {' >> Payload/App.app/Assets.xcassets/Contents.json
-                  printf '%s\n' '    "author" : "xcode",' >> Payload/App.app/Assets.xcassets/Contents.json
-                  printf '%s\n' '    "version" : 1' >> Payload/App.app/Assets.xcassets/Contents.json
-                  printf '%s\n' '  }' >> Payload/App.app/Assets.xcassets/Contents.json
-                  printf '%s\n' '}' >> Payload/App.app/Assets.xcassets/Contents.json
-                  
-                  echo "✅ Created comprehensive Assets.xcassets with proper icon structure"
-                  ls -la Payload/App.app/Icon*.png Payload/App.app/AppIcon*.png
-                  ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
-                else
-                  # Fallback: Use company logo directly if ImageMagick not available
-                  echo "⚠️ ImageMagick not available, using logo directly"
-                  cp company_logo.png Payload/App.app/AppIcon60x60@2x.png
-                  cp company_logo.png Payload/App.app/AppIcon76x76@2x~ipad.png
-                  cp company_logo.png Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  echo "✅ Using company logo directly for app icons"
-                  ls -la Payload/App.app/AppIcon*.png
-                fi
-              else
-                echo "❌ Failed to download company logo, creating basic placeholder icons"
-                # Create simple colored icons as fallback
-                if command -v convert >/dev/null 2>&1; then
-                  convert -size 120x120 xc:'#007AFF' -fill white -pointsize 36 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon60x60@2x.png
-                  convert -size 152x152 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon76x76@2x~ipad.png
-                  convert -size 167x167 xc:'#007AFF' -fill white -pointsize 42 -gravity center -annotate +0+0 'QA' Payload/App.app/AppIcon83.5x83.5@2x~ipad.png
-                  echo "✅ Created basic placeholder icons"
-                else
-                  # Create minimal placeholder files
-                  echo "⚠️ Creating minimal icon placeholders"
-                  for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
-                    # Create a minimal valid PNG
-                    printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00x\x00\x00\x00x\x08\x02\x00\x00\x00\x91\x12\x72\xfc\x00\x00\x00\x12IDAT\x08\x99c\xf8\x0f\x00\x00\x01\x00\x01\x00\x18\xdd\x8d\xb4\x00\x00\x00\x00IEND\xaeB`\x82' > "Payload/App.app/$icon"
-                  done
-                fi
-                ls -la Payload/App.app/AppIcon*.png
-              fi
-              
-              # Create required Launch Screen storyboard
-              echo "=================================================="
-              echo "📱 CREATING REQUIRED LAUNCHSCREEN STORYBOARD"
-              echo "=================================================="
-              echo "📱 Creating LaunchScreen storyboard..."
-              mkdir -p Payload/App.app/Base.lproj
-              # Create LaunchScreen storyboard using printf to avoid YAML issues
-              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '    <device id="retina6_12" orientation="portrait" appearance="light"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '    <dependencies>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '        <deployment identifier="iOS"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '    </dependencies>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '    <scenes>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '        <scene sceneID="EHf-IW-A2E">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '            <objects>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                <viewController id="01J-lp-oVM">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                    <view key="view" id="Ze5-6b-2t3">' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                        <color key="backgroundColor" red="1" green="1" blue="1"/>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                    </view>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '                </viewController>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '            </objects>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '        </scene>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '    </scenes>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              printf '%s\n' '</document>' >> Payload/App.app/Base.lproj/LaunchScreen.storyboard
-              
-              # Create proper entitlements file
-              echo "🔐 Creating entitlements file..."
-              # Create entitlements file using printf to avoid YAML issues
-              printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > Payload/App.app/App.entitlements
-              printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> Payload/App.app/App.entitlements
-              printf '%s\n' '<plist version="1.0">' >> Payload/App.app/App.entitlements
-              printf '%s\n' '<dict>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <key>application-identifier</key>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <string>BL7NANM4RM.com.qaonline.app</string>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <key>com.apple.developer.team-identifier</key>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <string>BL7NANM4RM</string>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <key>get-task-allow</key>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <false/>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <key>keychain-access-groups</key>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    <array>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '        <string>BL7NANM4RM.*</string>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '    </array>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '</dict>' >> Payload/App.app/App.entitlements
-              printf '%s\n' '</plist>' >> Payload/App.app/App.entitlements
-              
-              # EMBED PROVISIONING PROFILE FIRST - BEFORE ANYTHING ELSE
-              echo "🔐 Embedding provisioning profile FIRST..."
-              echo "🔍 Current directory for profile search: $(pwd)"
-              echo "🔍 Directory contents:"
-              ls -la | grep -i ".mobileprovision\|QAOnline" || echo "No provisioning profile visible"
-              
-              if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
-                cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-                echo "✅ Provisioning profile embedded: $(ls -la Payload/App.app/embedded.mobileprovision)"
-              else
-                echo "❌ Provisioning profile not found in current directory!"
-                echo "🔍 Searching for provisioning profile in project..."
-                find . -name "*.mobileprovision" -type f 2>/dev/null | head -5 || echo "No .mobileprovision files found anywhere"
-                exit 1
-              fi
-              
-              # Get the certificate hash - more robust approach
-              echo "🔍 Available identities in build keychain:"
-              security find-identity -v -p codesigning ~/Library/Keychains/build.keychain
-              
-              # Try build keychain first, then fallback to login keychain
-              CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
-              if [ -z "$CERT_HASH" ]; then
-                echo "🔍 No certificate in build keychain, trying login keychain:"
-                security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db
-                CERT_HASH=$(security find-identity -v -p codesigning ~/Library/Keychains/login.keychain-db | grep "iPhone Distribution" | head -1 | awk '{print $2}')
-              fi
-              echo "🔍 Certificate hash: '$CERT_HASH'"
-              
-              if [ -z "$CERT_HASH" ]; then
-                echo "❌ Could not extract certificate hash"
-                echo "🔧 Creating unsigned IPA for manual signing..."
-                zip -r App-unsigned.ipa Payload/
-                rm -rf Payload/
-                echo "📦 Created unsigned IPA: App-unsigned.ipa"
-                exit 1
-              fi
-              
-              # Configure keychain access for codesign
-              echo "🔧 Configuring keychain access for codesign..."
-              security unlock-keychain -p "temp" ~/Library/Keychains/build.keychain
-              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" ~/Library/Keychains/build.keychain
-              security default-keychain -s ~/Library/Keychains/build.keychain
-              
-              # 🔐 CRITICAL FIX: Proper framework signing for App Store submission
-              echo "🔐 CRITICAL: Signing embedded frameworks with proper entitlements..."
-              if [ -d "Payload/App.app/Frameworks" ]; then
-                # Create framework entitlements file using printf to avoid YAML issues
-                printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > framework_entitlements.plist
-                printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> framework_entitlements.plist
-                printf '%s\n' '<plist version="1.0">' >> framework_entitlements.plist
-                printf '%s\n' '<dict>' >> framework_entitlements.plist
-                printf '%s\n' '    <key>com.apple.developer.team-identifier</key>' >> framework_entitlements.plist
-                printf '%s\n' '    <string>BL7NANM4RM</string>' >> framework_entitlements.plist
-                printf '%s\n' '</dict>' >> framework_entitlements.plist
-                printf '%s\n' '</plist>' >> framework_entitlements.plist
-                
-                for framework in Payload/App.app/Frameworks/*.framework; do
-                  if [ -d "$framework" ]; then
-                    framework_name=$(basename "$framework")
-                    echo "🔐 Signing framework: $framework_name"
-                    
-                    # Remove existing signature first
-                    codesign --remove-signature "$framework" 2>/dev/null || true
-                    
-                    # Sign with proper Apple Distribution certificate and entitlements
-                    if codesign --force --sign "$CERT_HASH" --entitlements framework_entitlements.plist --verbose "$framework"; then
-                      echo "✅ Successfully signed $framework_name with entitlements"
-                      
-                      # Verify the signature
-                      if codesign --verify --verbose "$framework" 2>/dev/null; then
-                        echo "✅ Signature verification passed for $framework_name"
-                      else
-                        echo "⚠️ Signature verification failed for $framework_name"
-                      fi
-                    else
-                      echo "⚠️ Failed to sign $framework_name with certificate hash, trying identity name..."
-                      IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep -E "Apple Distribution|iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-                      if [ -n "$IDENTITY_NAME" ] && codesign --force --sign "$IDENTITY_NAME" --entitlements framework_entitlements.plist --verbose "$framework"; then
-                        echo "✅ Successfully signed $framework_name with identity name and entitlements"
-                      else
-                        echo "❌ CRITICAL: Failed to sign $framework_name - this will cause App Store rejection!"
-                        # Continue anyway but log the failure
-                      fi
-                    fi
-                  fi
-                done
-                
-                # Clean up entitlements file
-                rm -f framework_entitlements.plist
-              fi
-              
-              # Now sign the main app with entitlements (must be last)
-              echo "🔐 Attempting codesign with certificate hash and entitlements: $CERT_HASH"
-              if codesign --force --sign "$CERT_HASH" --entitlements Payload/App.app/App.entitlements Payload/App.app; then
-                echo "✅ Successfully signed main app with certificate hash and entitlements"
-              else
-                echo "⚠️ Certificate hash signing failed, trying with identity name..."
-                # Try with the full identity name  
-                IDENTITY_NAME=$(security find-identity -v -p codesigning ~/Library/Keychains/build.keychain | grep "iPhone Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-                echo "🔐 Trying with identity name: $IDENTITY_NAME"
-                if codesign --force --sign "$IDENTITY_NAME" --entitlements Payload/App.app/App.entitlements Payload/App.app; then
-                  echo "✅ Successfully signed main app with identity name and entitlements"
-                else
-                  echo "⚠️ All signing attempts failed, creating unsigned IPA..."
-                  echo "📦 Creating unsigned IPA for manual signing..."
-                  zip -r App-unsigned.ipa Payload/
-                  rm -rf Payload/
-                  echo "📦 Created unsigned IPA: App-unsigned.ipa"
-                  echo "📱 Manual signing required with:"
-                  echo "   codesign --force --sign '$CERT_HASH' Payload/App.app/Frameworks/*.framework"
-                  echo "   codesign --force --sign '$CERT_HASH' Payload/App.app"
-                  echo "⚠️ Proceeding with unsigned IPA for upload..."
-                  exit 0
-                fi
-              fi
-              
-              # FINAL VERIFICATION - Ensure all required files are present
-              echo "🔍 FINAL VERIFICATION - Checking all required files..."
-              echo "🔍 Current directory: $(pwd)"
-              echo "🔍 Payload directory contents:"
-              ls -la Payload/App.app/ || echo "❌ Payload/App.app not found!"
-              echo "🔍 Icons in bundle:"
-              ls -la Payload/App.app/AppIcon*.png 2>/dev/null || echo "❌ No AppIcon files found!"
-              echo "🔍 Info.plist contents preview:"
-              if [ -f "Payload/App.app/Info.plist" ]; then
-                head -20 Payload/App.app/Info.plist || echo "❌ Could not read Info.plist"
-              else
-                echo "❌ Info.plist not found!"
-              fi
-              
-              # Check provisioning profile
-              if [ -f "Payload/App.app/embedded.mobileprovision" ]; then
-                echo "✅ Provisioning profile is embedded"
-                ls -la Payload/App.app/embedded.mobileprovision
-              else
-                echo "❌ CRITICAL: Provisioning profile missing after signing!"
-                echo "🔧 Re-embedding provisioning profile..."
-                cp QAOnlineAppStoreProfile.mobileprovision Payload/App.app/embedded.mobileprovision
-                echo "✅ Provisioning profile re-embedded"
-              fi
-              
-              # Check Info.plist
-              if [ -f "Payload/App.app/Info.plist" ]; then
-                echo "✅ Info.plist exists"
-                echo "🔍 Checking CFBundleIconName in Info.plist..."
-                if grep -q "CFBundleIconName" Payload/App.app/Info.plist; then
-                  echo "✅ CFBundleIconName found in Info.plist"
-                else
-                  echo "❌ CFBundleIconName missing from Info.plist!"
-                fi
-              else
-                echo "❌ CRITICAL: Info.plist missing!"
-              fi
-              
-              # 🔍 COMPREHENSIVE ICON VERIFICATION for Apple validation
-              echo "🔍 Checking app icons - COMPREHENSIVE VERIFICATION..."
-              
-              # Check CRITICAL Apple validation icons
-              echo "🎯 CRITICAL APPLE VALIDATION ICONS:"
-              for icon in "AppIcon60x60@2x.png" "Icon-120.png" "AppIcon-120.png"; do
-                if [ -f "Payload/App.app/$icon" ]; then
-                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
-                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
-                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
-                else
-                  echo "❌ CRITICAL: $icon missing!"
-                fi
-              done
-              
-              # Check APP STORE MARKETING ICON (often the missing piece!)
-              echo "⭐ APP STORE MARKETING ICON (1024x1024):"
-              for icon in "AppIcon-1024.png" "Icon-1024.png"; do
-                if [ -f "Payload/App.app/$icon" ]; then
-                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
-                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
-                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
-                else
-                  echo "❌ CRITICAL: $icon missing!"
-                fi
-              done
-              
-              # Check iPad icons
-              echo "📱 IPAD VALIDATION ICONS:"
-              for icon in "AppIcon76x76@2x~ipad.png" "Icon-152.png" "AppIcon-152.png"; do
-                if [ -f "Payload/App.app/$icon" ]; then
-                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
-                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
-                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
-                else
-                  echo "❌ CRITICAL: $icon missing!"
-                fi
-              done
-              
-              # Check iPad Pro icons
-              echo "📱 IPAD PRO VALIDATION ICONS:"
-              for icon in "AppIcon83.5x83.5@2x~ipad.png" "Icon-167.png" "AppIcon-167.png"; do
-                if [ -f "Payload/App.app/$icon" ]; then
-                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
-                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
-                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
-                else
-                  echo "❌ CRITICAL: $icon missing!"
-                fi
-              done
-              
-              # Check legacy icons  
-              echo "🔄 LEGACY COMPATIBILITY ICONS:"
-              for icon in "Icon.png" "Icon@2x.png" "Icon-72.png" "Icon-72@2x.png"; do
-                if [ -f "Payload/App.app/$icon" ]; then
-                  size=$(ls -la "Payload/App.app/$icon" | awk '{print $5}')
-                  dims=$(identify "Payload/App.app/$icon" 2>/dev/null | awk '{print $3}' || echo "unknown")
-                  echo "✅ $icon exists: $size bytes, dimensions: $dims"
-                else
-                  echo "⚠️ $icon missing (legacy, may be optional)"
-                fi
-              done
-              
-              # List ALL icons to see what we actually have
-              echo "📋 ALL ICON FILES IN BUNDLE:"
-              find Payload/App.app -name "*.png" -type f | sort
-              
-              # Check Assets.xcassets structure
-              if [ -d "Payload/App.app/Assets.xcassets/AppIcon.appiconset" ]; then
-                echo "✅ Assets.xcassets AppIcon set exists"
-                ls -la Payload/App.app/Assets.xcassets/AppIcon.appiconset/
-              else
-                echo "❌ CRITICAL: Assets.xcassets AppIcon set missing!"
-              fi
-              
-              # Check Launch Screen
-              if [ -f "Payload/App.app/Base.lproj/LaunchScreen.storyboard" ]; then
-                echo "✅ LaunchScreen.storyboard exists"
-              else
-                echo "❌ CRITICAL: LaunchScreen.storyboard missing!"
-              fi
-              
-              # Verify the signatures
-              echo "🔍 Verifying app and framework signatures..."
-              
-              # Verify frameworks first
-              if [ -d "Payload/App.app/Frameworks" ]; then
-                for framework in Payload/App.app/Frameworks/*.framework; do
-                  if [ -d "$framework" ]; then
-                    framework_name=$(basename "$framework")
-                    echo "🔍 Verifying $framework_name signature..."
-                    if codesign -dv --verbose=4 "$framework" 2>/dev/null; then
-                      echo "✅ $framework_name is properly signed"
-                    else
-                      echo "❌ $framework_name signature verification failed"
-                    fi
-                  fi
-                done
-              fi
-              
-              # Verify main app
-              echo "🔍 Verifying main app signature..."
-              if codesign -dv --verbose=4 Payload/App.app 2>/dev/null; then
-                echo "✅ Main app is properly signed"
-              else
-                echo "❌ Main app signature verification failed"
-              fi
-              
-              # Create signed IPA - SIMPLIFIED PROCESS
-              echo "📦 Creating signed IPA..."
-              zip -r App-signed.ipa Payload/
-              
-              # FINAL IPA VERIFICATION
-              echo "🔍 FINAL IPA VERIFICATION..."
-              echo "📦 IPA file size: $(ls -la App-signed.ipa | awk '{print $5}')"
-              echo "📦 Checking for embedded.mobileprovision in IPA:"
-              if unzip -l App-signed.ipa | grep embedded.mobileprovision; then
-                echo "✅ embedded.mobileprovision found in IPA!"
-              else
-                echo "❌ CRITICAL: embedded.mobileprovision NOT found in IPA!"
-                exit 1
-              fi
-              
-              # 🎯 CRITICAL: Verify icons are actually IN the uploaded IPA
-              echo "🔍 CRITICAL APPLE VALIDATION: Verifying icons are in the final IPA..."
-              echo "📋 ALL PNG FILES IN FINAL IPA:"
-              unzip -l App-signed.ipa | grep -E "\.png$" | sort || echo "❌ No PNG files found in IPA!"
-              
-              echo "🎯 CRITICAL VALIDATION ICONS IN IPA:"
-              for icon in "AppIcon60x60@2x.png" "AppIcon76x76@2x~ipad.png" "AppIcon83.5x83.5@2x~ipad.png"; do
-                if unzip -l App-signed.ipa | grep -q "$icon"; then
-                  echo "✅ $icon found in IPA"
-                else
-                  echo "❌ CRITICAL: $icon missing from IPA!"
-                fi
-              done
-              
-              echo "🔍 Info.plist verification in IPA:"
-              if unzip -l App-signed.ipa | grep -q "Info.plist"; then
-                echo "✅ Info.plist found in IPA"
-                # Extract and check CFBundleIconName
-                unzip -p App-signed.ipa Payload/App.app/Info.plist 2>/dev/null | grep -A1 "CFBundleIconName" || echo "❌ CFBundleIconName not found in IPA Info.plist"
-              else
-                echo "❌ CRITICAL: Info.plist missing from IPA!"
-              fi
-              
-              # Clean up
-              rm -rf Payload/
-            fi
-            
-            # Handle final IPA based on whether we built real iOS app or test IPA
-            if [ "$REAL_IPA_CREATED" = "true" ] && [ -f "App.ipa" ]; then
-              echo "✅ Using real iOS app IPA (already properly signed for App Store)"
-              echo "🔄 Renaming real iOS app to App-signed.ipa for upload consistency"
-              mv App.ipa App-signed.ipa
-              echo "📱 Real iOS app ready for App Store Connect upload!"
-            elif [ -f "App-signed.ipa" ]; then
-              echo "✅ Using test IPA (created from Payload directory)"
-            else
-              echo "❌ No IPA file found - neither real iOS app nor test IPA was created"
-              exit 1
-            fi
-            
-            if [ -f "App-signed.ipa" ]; then
-            echo "✅ IPA signed successfully!"
-            ls -la App-signed.ipa
-            echo "📊 File size: $(ls -la App-signed.ipa | awk '{print $5}')"
-            
-            # Ensure signed IPA is also in project root for upload step
-            echo "📋 Copying signed IPA to project root for upload..."
-            cp App-signed.ipa ../App-signed.ipa
-            echo "✅ Signed IPA copied to project root: $(ls -la ../App-signed.ipa)"
-              
-              # Final validation check
-              echo "🔍 FINAL IPA VALIDATION..."
-              mkdir -p final_validation
-              cd final_validation
-              unzip -q ../App-signed.ipa
-              if [ -f "Payload/App.app/App" ]; then
-                FINAL_EXEC_TYPE=$(file Payload/App.app/App)
-                echo "🔍 Final executable type: $FINAL_EXEC_TYPE"
-                if echo "$FINAL_EXEC_TYPE" | grep -q "Mach-O"; then
-                  echo "✅ Final IPA has valid Mach-O executable"
-                else
-                  echo "❌ CRITICAL: Final IPA still has invalid executable!"
-                fi
-              else
-                echo "❌ CRITICAL: Final IPA missing executable!"
-              fi
-              cd ..
-              rm -rf final_validation
-              
-            echo ""
-            echo "🎉 Successfully created signed IPA!"
-            echo "📱 The signed IPA is ready for App Store Connect upload"
-            else
-              echo "❌ CRITICAL: No IPA file was created!"
-              exit 1
-            fi
-      
-      - run:
-          name: "Upload to App Store Connect"
-          command: |
-            echo "🚀 Uploading signed IPA to App Store Connect..."
-            
-            # Verify the signed IPA exists
-            if [ ! -f "App-signed.ipa" ]; then
-              echo "❌ Signed IPA not found in current directory!"
-              echo "🔍 Current directory: $(pwd)"
-              echo "🔍 Looking for IPA files in current directory:"
-              ls -la *.ipa 2>/dev/null || echo "No IPA files found"
-              echo "🔍 Looking for IPA files in ios/App directory:"
-              ls -la ios/App/*.ipa 2>/dev/null || echo "No IPA files found in ios/App"
-              
-              # Try to find and copy the signed IPA from ios/App
-              if [ -f "ios/App/App-signed.ipa" ]; then
-                echo "✅ Found signed IPA in ios/App directory, copying to root..."
-                cp ios/App/App-signed.ipa ./App-signed.ipa
-                echo "✅ Copied signed IPA to root: $(ls -la App-signed.ipa)"
-              else
-                echo "❌ Signed IPA not found anywhere!"
-              exit 1
-              fi
-            fi
-            
-            echo "📦 Found signed IPA: $(ls -la App-signed.ipa)"
-            
-            # Create API key file
-            echo "🔧 Creating API key file..."
-            echo "-----BEGIN PRIVATE KEY-----" > AuthKey_GFAD2LJGMF.p8
-            echo "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1vU6intGe1gMVZfN" >> AuthKey_GFAD2LJGMF.p8
-            echo "3uGFclwxNVKftqmr4qoN2nZAbz6gCgYIKoZIzj0DAQehRANCAAQSsnQ3Tcwk/20M" >> AuthKey_GFAD2LJGMF.p8
-            echo "kq/wsbs/v2geFzCWyd27fEFyjtPQMaUBt35iEYr/v013EaJOkDHnvGNUZLrpoADe" >> AuthKey_GFAD2LJGMF.p8
-            echo "/E3jYa4n" >> AuthKey_GFAD2LJGMF.p8
-            echo "-----END PRIVATE KEY-----" >> AuthKey_GFAD2LJGMF.p8
-            echo "✅ API key file created"
-            
-            # Setup Fastlane
-            # Set terminal environment variables to fix fastlane terminal issues
-            export TERM=xterm-256color
-            export TERMINFO=/usr/share/terminfo
-            
-            gem install fastlane
-            
-            # Set OpenSSL compatibility for older API keys
-            export OPENSSL_CONF=/dev/null
-            export OPENSSL_LEGACY_PROVIDER=1
-            
-            # Create Fastlane configuration for upload
-            mkdir -p fastlane
-            
-            # Create simple Fastfile using echo commands
-            echo 'default_platform(:ios)' > fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo 'platform :ios do' >> fastlane/Fastfile
-            echo '  desc "Upload to App Store Connect"' >> fastlane/Fastfile
-            echo '  lane :upload do' >> fastlane/Fastfile
-            echo '    begin' >> fastlane/Fastfile
-            echo '      # Use API key file directly with known values' >> fastlane/Fastfile
-            echo '      UI.message("�� Using API key file with known values...")' >> fastlane/Fastfile
-            echo '      api_key = app_store_connect_api_key(' >> fastlane/Fastfile
-            echo '        key_id: "GFAD2LJGMF",' >> fastlane/Fastfile
-            echo '        issuer_id: "ebf8afbb-9400-43d1-8a48-66d148957a62",' >> fastlane/Fastfile
-            echo '        key_filepath: "AuthKey_GFAD2LJGMF.p8",' >> fastlane/Fastfile
-            echo '        duration: 1200,' >> fastlane/Fastfile
-            echo '        in_house: false' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ API key authentication successful")' >> fastlane/Fastfile
-            echo '' >> fastlane/Fastfile
-            echo '      # Upload to TestFlight' >> fastlane/Fastfile
-            echo '      UI.message("🚀 Attempting to upload to TestFlight...")' >> fastlane/Fastfile
-            echo '      pilot(' >> fastlane/Fastfile
-            echo '        ipa: "App-signed.ipa",' >> fastlane/Fastfile
-            echo '        app_platform: "ios",' >> fastlane/Fastfile
-            echo '        skip_waiting_for_build_processing: true,' >> fastlane/Fastfile
-            echo '        skip_submission: true,' >> fastlane/Fastfile
-            echo '        api_key: api_key' >> fastlane/Fastfile
-            echo '      )' >> fastlane/Fastfile
-            echo '      UI.message("✅ Upload to TestFlight completed successfully!")' >> fastlane/Fastfile
-            echo '    rescue => e' >> fastlane/Fastfile
-            echo '      UI.error("❌ Upload failed: #{e.message}")' >> fastlane/Fastfile
-            echo '      UI.message("📦 Signed IPA created successfully but upload failed")' >> fastlane/Fastfile
-            echo '      UI.message("📱 You can manually upload App-signed.ipa to App Store Connect")' >> fastlane/Fastfile
-            echo '      raise e' >> fastlane/Fastfile
-            echo '    end' >> fastlane/Fastfile
-            echo '  end' >> fastlane/Fastfile
-            echo 'end' >> fastlane/Fastfile
-
-            # Create Appfile using echo commands
-            echo 'app_identifier("com.qaonline.app")' > fastlane/Appfile
-            echo 'apple_id("jonatan.k@qaonline.co.il")' >> fastlane/Appfile
-            echo 'team_id("BL7NANM4RM")' >> fastlane/Appfile
-            
-            # Run upload with fallback to altool if fastlane fails
-            echo "🚀 Attempting upload with fastlane..."
-            if fastlane upload; then
-              echo "✅ Upload to App Store Connect completed via fastlane"
-            else
-              echo "⚠️ Fastlane upload failed, trying altool fallback..."
-              echo "🔧 Using Apple altool for upload..."
-              
-              # Try altool as fallback (works better in headless environments)
-              # Copy API key to expected location for altool
-              mkdir -p ~/.appstoreconnect/private_keys
-              cp AuthKey_GFAD2LJGMF.p8 ~/.appstoreconnect/private_keys/
-              
-              xcrun altool --upload-app --type ios --file App-signed.ipa \
-                --apiKey GFAD2LJGMF \
-                --apiIssuer ebf8afbb-9400-43d1-8a48-66d148957a62 \
-                --verbose
-              
-              if [ $? -eq 0 ]; then
-                echo "✅ Upload to App Store Connect completed via altool"
-              else
-                echo "❌ Both fastlane and altool uploads failed"
-                echo "📱 Signed IPA created successfully: App-signed.ipa"
-                echo "📤 You can manually upload this IPA to App Store Connect"
-                echo "🔗 Go to: https://appstoreconnect.apple.com"
-                exit 1
-              fi
-            fi
-      
-      - store_artifacts:
-          path: App-signed.ipa
-          destination: signed-ipa
-      
-      - store_artifacts:
-          path: App-unsigned.ipa
-          destination: unsigned-ipa
-
 workflows:
   version: 2
   
-  # Workflow 1: Generate CSR only (triggered by branch name)
-  generate_csr_workflow:
+  build_and_upload:
+    jobs:
+      - build_and_upload_ios:
+          filters:
+            branches:
+              only: main
+          context: apple-credentials
+  
+  generate_csr:
     jobs:
       - generate_csr_only:
           filters:
             branches:
-              only: generate-csr
-  
-  # Workflow 2: Full build and upload (default)
-  simple_sign_workflow:
-    jobs:
-      - simple_sign_and_upload:
-          filters:
-            branches:
-              only: main
+              only: csr-generation
