@@ -64,14 +64,20 @@ jobs:
             echo "📋 Default keychain:"
             security default-keychain
             
-            # Install Apple Distribution certificate
-            if [ -f "auto_distribution.cer" ]; then
-              echo "🎉 Installing Apple Distribution certificate..."
-              security import auto_distribution.cer -k build.keychain -T /usr/bin/codesign
+            # Install Apple Distribution certificate (try P12 first, then CER + PEM)
+            if [ -f "ios_distribution.p12" ]; then
+              echo "🎉 Installing iOS distribution certificate (P12)..."
+              security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P ""
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
-            elif [ -f "distribution.cer" ]; then
-              echo "🎉 Installing distribution certificate..."
+            elif [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
+              echo "🎉 Installing Apple Distribution certificate + private key..."
+              security import auto_distribution.cer -k build.keychain -T /usr/bin/codesign
+              security import auto_distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
+              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
+            elif [ -f "distribution.cer" ] && [ -f "distribution_private_key.pem" ]; then
+              echo "🎉 Installing distribution certificate + private key..."
               security import distribution.cer -k build.keychain -T /usr/bin/codesign
+              security import distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
             elif [ -f "ios_distribution.cer" ]; then
               echo "🎉 Installing iOS distribution certificate..."
@@ -80,20 +86,8 @@ jobs:
             else
               echo "❌ No distribution certificate found!"
               echo "Available certificates:"
-              ls -la *.cer 2>/dev/null || echo "No .cer files found"
+              ls -la *.cer *.p12 *.pem 2>/dev/null || echo "No certificate files found"
               exit 1
-            fi
-            
-            # Install private key if exists
-            if [ -f "auto_distribution_private_key.pem" ]; then
-              echo "🔑 Installing private key..."
-              security import auto_distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
-            elif [ -f "distribution_private_key.pem" ]; then
-              echo "🔑 Installing private key..."
-              security import distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
-            elif [ -f "ios_distribution.p12" ]; then
-              echo "🔑 Installing iOS distribution certificate (P12)..."
-              security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P ""
             fi
             
             # Verify certificate installation
