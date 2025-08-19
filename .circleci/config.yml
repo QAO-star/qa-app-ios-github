@@ -34,9 +34,9 @@ jobs:
             echo "✅ npm location: $(which npm)"
       
       - run:
-          name: "Install dependencies and setup Capacitor"
+          name: "Setup Capacitor without npm install"
           command: |
-            echo "📦 Installing dependencies..."
+            echo "📦 Setting up Capacitor without npm install..."
             
             # Ensure npm is available
             export NVM_DIR="$HOME/.nvm"
@@ -46,34 +46,21 @@ jobs:
             echo "🔍 npm location: $(which npm)"
             echo "🔍 npm version: $(npm --version)"
             
-            # Configure npm for better reliability
-            npm config set registry https://registry.npmjs.org/
-            npm config set fetch-retries 5
-            npm config set fetch-retry-mintimeout 20000
-            npm config set fetch-retry-maxtimeout 120000
-            
-            # Clear npm cache and install with verbose output
-            npm cache clean --force
-            
-            # Try simple npm install first
-            echo "📦 Attempting simple npm install..."
-            npm install --no-optional --no-audit --no-fund
-            
-            # If that fails, try with more verbose output
-            if [ $? -ne 0 ]; then
-              echo "⚠️ Simple install failed, trying with verbose output..."
-              npm install --verbose --no-optional --no-audit --no-fund
-            fi
-            
-            # Install Capacitor CLI globally
+            # Install only Capacitor CLI globally (skip local dependencies)
             echo "📦 Installing Capacitor CLI globally..."
-            npm install -g @capacitor/cli@6.0.0 --verbose
+            npm install -g @capacitor/cli@6.0.0
             
-            # Add iOS platform if not exists
-            if [ ! -d "ios" ]; then
-              echo "📱 Adding iOS platform..."
-              npx cap add ios
-            fi
+            # Create basic iOS project structure manually
+            echo "📱 Creating iOS project structure..."
+            mkdir -p ios/App
+            
+            # Create basic Capacitor iOS project
+            echo "📱 Initializing Capacitor iOS project..."
+            npx cap init "QA-Online" "com.qaonline.app" --web-dir public
+            
+            # Add iOS platform
+            echo "📱 Adding iOS platform..."
+            npx cap add ios
             
             # Sync web content
             echo "🔄 Syncing web content..."
