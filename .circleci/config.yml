@@ -232,6 +232,9 @@ jobs:
               # Set code signing style to manual
               sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
               
+              # Set provisioning style to manual (this is the key fix!)
+              sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' App.xcodeproj/project.pbxproj
+              
               echo "📝 Adding provisioning profile to build settings..."
               
               # Replace ALL provisioning profile references with the correct UUID
