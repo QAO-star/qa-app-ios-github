@@ -66,6 +66,10 @@ jobs:
               echo "🎉 Installing distribution certificate..."
               security import distribution.cer -k build.keychain -T /usr/bin/codesign
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
+            elif [ -f "ios_distribution.cer" ]; then
+              echo "🎉 Installing iOS distribution certificate..."
+              security import ios_distribution.cer -k build.keychain -T /usr/bin/codesign
+              security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
             else
               echo "❌ No distribution certificate found!"
               echo "Available certificates:"
@@ -80,6 +84,9 @@ jobs:
             elif [ -f "distribution_private_key.pem" ]; then
               echo "🔑 Installing private key..."
               security import distribution_private_key.pem -k build.keychain -T /usr/bin/codesign
+            elif [ -f "ios_distribution.p12" ]; then
+              echo "🔑 Installing iOS distribution certificate (P12)..."
+              security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P ""
             fi
             
             # Install provisioning profile
