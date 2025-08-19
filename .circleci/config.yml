@@ -4,9 +4,6 @@ executors:
   macos:
     macos:
       xcode: "16.0.0"
-  node:
-    docker:
-      image: cimg/node:18.20.8
 
 jobs:
   build_and_upload_ios:
