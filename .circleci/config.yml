@@ -46,10 +46,20 @@ jobs:
             echo "🔍 npm location: $(which npm)"
             echo "🔍 npm version: $(npm --version)"
             
-            npm install
+            # Configure npm for better reliability
+            npm config set registry https://registry.npmjs.org/
+            npm config set fetch-retries 5
+            npm config set fetch-retry-mintimeout 20000
+            npm config set fetch-retry-maxtimeout 120000
+            
+            # Clear npm cache and install with verbose output
+            npm cache clean --force
+            echo "📦 Installing dependencies with verbose output..."
+            npm install --verbose
             
             # Install Capacitor CLI globally
-            npm install -g @capacitor/cli@6.0.0
+            echo "📦 Installing Capacitor CLI globally..."
+            npm install -g @capacitor/cli@6.0.0 --verbose
             
             # Add iOS platform if not exists
             if [ ! -d "ios" ]; then
