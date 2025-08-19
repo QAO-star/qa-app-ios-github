@@ -130,14 +130,20 @@ jobs:
             
             echo "✅ Certificate setup completed"
       
-      - run:
+            - run:
           name: "Configure iOS project"
           command: |
             echo "⚙️ Configuring iOS project..."
             
             # Update iOS project configuration
-              cd ios/App
-              
+            cd ios/App
+            
+            # Install CocoaPods if Podfile exists
+            if [ -f "Podfile" ]; then
+              echo "📦 Installing CocoaPods dependencies..."
+              pod install --repo-update
+            fi
+            
             # Update bundle identifier and team ID
             if [ -f "App.xcodeproj/project.pbxproj" ]; then
               # Set bundle identifier
@@ -152,10 +158,13 @@ jobs:
               # Set provisioning profile
               sed -i '' 's/PROVISIONING_PROFILE = ".*";/PROVISIONING_PROFILE = "QAOnlineAppStoreProfile";/g' App.xcodeproj/project.pbxproj
               
+              # Set code signing style to manual
+              sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' App.xcodeproj/project.pbxproj
+              
               echo "✅ iOS project configured"
             fi
             
-                cd ../..
+            cd ../..
       
       - run:
           name: "Build iOS app"
