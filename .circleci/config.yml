@@ -143,6 +143,21 @@ jobs:
             echo "📋 Installed certificates:"
             security find-identity -v -p codesigning build.keychain
             
+            # List installed provisioning profiles
+            echo "📋 Installed provisioning profiles:"
+            ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+            
+            # Check provisioning profile details
+            echo "📋 Provisioning profile details:"
+            if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
+              echo "Profile name from file:"
+              security cms -D -i QAOnlineAppStoreProfile.mobileprovision | grep -A 1 "Name" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/'
+              echo "Profile UUID:"
+              security cms -D -i QAOnlineAppStoreProfile.mobileprovision | grep -A 1 "UUID" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/'
+              echo "Profile certificates:"
+              security cms -D -i QAOnlineAppStoreProfile.mobileprovision | grep -A 5 "DeveloperCertificates" | grep "data" | head -1
+            fi
+            
             echo "✅ Certificate setup completed"
       
       
@@ -240,6 +255,10 @@ jobs:
               echo "Code Sign Identity: $(grep 'CODE_SIGN_IDENTITY' App.xcodeproj/project.pbxproj | head -1)"
               echo "Code Sign Style: $(grep 'CODE_SIGN_STYLE' App.xcodeproj/project.pbxproj | head -1)"
               echo "Provisioning Profile: $(grep 'PROVISIONING_PROFILE' App.xcodeproj/project.pbxproj | head -1)"
+              
+              # Also check for any other provisioning profile references
+              echo "📋 All provisioning profile references in project:"
+              grep -i "provisioning" App.xcodeproj/project.pbxproj || echo "No other provisioning references found"
             fi
             
             cd ../..
