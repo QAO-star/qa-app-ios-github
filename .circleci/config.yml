@@ -139,10 +139,43 @@ jobs:
             # Update iOS project configuration
             cd ios/App
             
-            # Install CocoaPods if Podfile exists
+            # Check if Podfile exists and if it requires Capacitor
             if [ -f "Podfile" ]; then
+              echo "📦 Checking Podfile dependencies..."
+              if grep -q "@capacitor/ios" Podfile; then
+                echo "⚠️ Podfile requires Capacitor dependencies that are not available"
+                echo "📝 Creating minimal Podfile without Capacitor dependencies..."
+                
+                # Create a minimal Podfile without Capacitor dependencies
+                cat > Podfile << 'EOF'
+platform :ios, '13.0'
+use_frameworks!
+
+# workaround to avoid Xcode caching of Pods that requires
+# Product -> Clean Build Folder after new Cordova plugins installed
+# Requires CocoaPods 1.6 or newer
+install! 'cocoapods', :disable_input_output_paths => true
+
+target 'App' do
+  # Add your Pods here if needed
+  # No Capacitor dependencies required for simple web wrapper
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+  end
+end
+EOF
+                echo "✅ Created minimal Podfile"
+              fi
+              
               echo "📦 Installing CocoaPods dependencies..."
               pod install --repo-update
+            else
+              echo "ℹ️ No Podfile found, skipping CocoaPods installation"
             fi
             
             # Update bundle identifier and team ID
