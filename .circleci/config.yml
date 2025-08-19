@@ -116,15 +116,32 @@ jobs:
               echo "📋 Installing provisioning profile..."
               mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
               cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+              
+              # Try to extract UUID using multiple methods
+              echo "🔍 Extracting provisioning profile UUID..."
               PROFILE_UUID=$(grep -a -A 0 -B 2 "com.qaonline.app" ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision | grep -o "[-A-Za-z0-9]\{36\}" | head -1)
+              
+              if [ -z "$PROFILE_UUID" ]; then
+                # Try alternative method
+                PROFILE_UUID=$(security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision 2>/dev/null | grep -o '"UUID"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4)
+              fi
+              
+              if [ -z "$PROFILE_UUID" ]; then
+                # Try another method
+                PROFILE_UUID=$(strings ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision | grep -E "[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}" | head -1)
+              fi
+              
               if [ -n "$PROFILE_UUID" ]; then
                 mv ~/Library/MobileDevice/Provisioning\ Profiles/QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
                 echo "✅ Provisioning profile installed with UUID: $PROFILE_UUID"
               else
                 echo "⚠️ Could not extract UUID, using original filename"
+                echo "✅ Provisioning profile installed as: QAOnlineAppStoreProfile.mobileprovision"
               fi
             else
               echo "❌ No provisioning profile found!"
+              echo "Available files:"
+              ls -la *.mobileprovision 2>/dev/null || echo "No .mobileprovision files found"
               exit 1
             fi
             
