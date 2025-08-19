@@ -26,13 +26,26 @@ jobs:
             nvm install 18
             nvm use 18
             
+            # Ensure npm is in PATH
+            export PATH="$NVM_DIR/versions/node/v18.20.8/bin:$PATH"
+            
             echo "✅ Node.js version: $(node --version)"
             echo "✅ npm version: $(npm --version)"
+            echo "✅ npm location: $(which npm)"
       
       - run:
           name: "Install dependencies and setup Capacitor"
           command: |
             echo "📦 Installing dependencies..."
+            
+            # Ensure npm is available
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH="$NVM_DIR/versions/node/v18.20.8/bin:$PATH"
+            
+            echo "🔍 npm location: $(which npm)"
+            echo "🔍 npm version: $(npm --version)"
+            
             npm install
             
             # Install Capacitor CLI globally
