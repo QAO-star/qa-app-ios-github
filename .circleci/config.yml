@@ -128,6 +128,10 @@ jobs:
               # Export UUID for use in project configuration
               echo "export PROFILE_UUID=$PROFILE_UUID" >> ~/.bashrc
               export PROFILE_UUID="$PROFILE_UUID"
+              
+              # Create a file to store the UUID for other steps
+              echo "$PROFILE_UUID" > /tmp/profile_uuid.txt
+              echo "📝 UUID saved to /tmp/profile_uuid.txt: $PROFILE_UUID"
             else
               echo "❌ No provisioning profile found!"
               echo "Available files:"
@@ -146,6 +150,15 @@ jobs:
           name: "Configure iOS project"
           command: |
             echo "⚙️ Configuring iOS project..."
+            
+            # Read UUID from file
+            if [ -f "/tmp/profile_uuid.txt" ]; then
+              PROFILE_UUID=$(cat /tmp/profile_uuid.txt)
+              echo "📋 Retrieved UUID from file: $PROFILE_UUID"
+            else
+              echo "❌ UUID file not found!"
+              exit 1
+            fi
             
             # Update iOS project configuration
             cd ios/App
@@ -235,6 +248,15 @@ jobs:
           name: "Build iOS app"
           command: |
             echo "🔨 Building iOS app..."
+            
+            # Read UUID from file
+            if [ -f "/tmp/profile_uuid.txt" ]; then
+              PROFILE_UUID=$(cat /tmp/profile_uuid.txt)
+              echo "📋 Retrieved UUID for build: $PROFILE_UUID"
+            else
+              echo "❌ UUID file not found!"
+              exit 1
+            fi
             
             cd ios/App
             
