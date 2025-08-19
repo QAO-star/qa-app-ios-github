@@ -209,10 +209,10 @@ jobs:
               
               # Find the buildSettings sections and add provisioning profile
               # This is a more robust approach that adds the profile to both debug and release configurations
-              awk '
+              awk -v uuid="$PROFILE_UUID" '
               /buildSettings = {/ {
                   print $0
-                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"'$PROFILE_UUID'\";"
+                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"" uuid "\";"
                   next
               }
               { print $0 }
