@@ -54,8 +54,15 @@ jobs:
             
             # Clear npm cache and install with verbose output
             npm cache clean --force
-            echo "📦 Installing dependencies with verbose output..."
-            npm install --verbose
+            
+            # Try npm install with different approaches
+            echo "📦 Attempting npm install..."
+            if npm install --verbose; then
+              echo "✅ npm install successful"
+            else
+              echo "⚠️ npm install failed, trying with legacy peer deps..."
+              npm install --legacy-peer-deps --verbose
+            fi
             
             # Install Capacitor CLI globally
             echo "📦 Installing Capacitor CLI globally..."
