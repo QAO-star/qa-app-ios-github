@@ -249,7 +249,7 @@ jobs:
               -archivePath App.xcarchive \
               -destination generic/platform=iOS \
               CODE_SIGN_IDENTITY="Apple Distribution" \
-              PROVISIONING_PROFILE="QAOnlineAppStoreProfile" \
+              PROVISIONING_PROFILE="$PROFILE_UUID" \
               DEVELOPMENT_TEAM="BL7NANM4RM" \
               PRODUCT_BUNDLE_IDENTIFIER="com.qaonline.app"
             
