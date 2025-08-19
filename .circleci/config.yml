@@ -146,29 +146,28 @@ jobs:
                 echo "⚠️ Podfile requires Capacitor dependencies that are not available"
                 echo "📝 Creating minimal Podfile without Capacitor dependencies..."
                 
-                # Create a minimal Podfile without Capacitor dependencies
-                cat > Podfile << 'EOF'
-platform :ios, '13.0'
-use_frameworks!
-
-# workaround to avoid Xcode caching of Pods that requires
-# Product -> Clean Build Folder after new Cordova plugins installed
-# Requires CocoaPods 1.6 or newer
-install! 'cocoapods', :disable_input_output_paths => true
-
-target 'App' do
-  # Add your Pods here if needed
-  # No Capacitor dependencies required for simple web wrapper
-end
-
-post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-    end
-  end
-end
-EOF
+                # Create a minimal Podfile without Capacitor dependencies using echo statements
+                echo "platform :ios, '13.0'" > Podfile
+                echo "use_frameworks!" >> Podfile
+                echo "" >> Podfile
+                echo "# workaround to avoid Xcode caching of Pods that requires" >> Podfile
+                echo "# Product -> Clean Build Folder after new Cordova plugins installed" >> Podfile
+                echo "# Requires CocoaPods 1.6 or newer" >> Podfile
+                echo "install! 'cocoapods', :disable_input_output_paths => true" >> Podfile
+                echo "" >> Podfile
+                echo "target 'App' do" >> Podfile
+                echo "  # Add your Pods here if needed" >> Podfile
+                echo "  # No Capacitor dependencies required for simple web wrapper" >> Podfile
+                echo "end" >> Podfile
+                echo "" >> Podfile
+                echo "post_install do |installer|" >> Podfile
+                echo "  installer.pods_project.targets.each do |target|" >> Podfile
+                echo "    target.build_configurations.each do |config|" >> Podfile
+                echo "      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'" >> Podfile
+                echo "    end" >> Podfile
+                echo "  end" >> Podfile
+                echo "end" >> Podfile
+                
                 echo "✅ Created minimal Podfile"
               fi
               
