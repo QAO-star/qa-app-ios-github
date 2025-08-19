@@ -235,16 +235,29 @@ jobs:
               # Add provisioning profile to build settings
               echo "📝 Adding provisioning profile to build settings..."
               
-              # Find the buildSettings sections and add provisioning profile
-              # This is a more robust approach that adds the profile to both debug and release configurations
-              awk -v uuid="$PROFILE_UUID" '
-              /buildSettings = {/ {
-                  print $0
-                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"" uuid "\";"
-                  next
-              }
-              { print $0 }
-              ' App.xcodeproj/project.pbxproj > App.xcodeproj/project.pbxproj.tmp && mv App.xcodeproj/project.pbxproj.tmp App.xcodeproj/project.pbxproj
+              # Replace ALL provisioning profile references with the correct UUID
+              echo "🔧 Replacing all provisioning profile references with UUID: $PROFILE_UUID"
+              
+              # Replace any existing provisioning profile references
+              sed -i '' 's/PROVISIONING_PROFILE = ".*";/PROVISIONING_PROFILE = "'$PROFILE_UUID'";/g' App.xcodeproj/project.pbxproj
+              sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ".*";/PROVISIONING_PROFILE_SPECIFIER = "'$PROFILE_UUID'";/g' App.xcodeproj/project.pbxproj
+              
+              # Also replace any profile name references
+              sed -i '' 's/"QA-Online-App-Store-Profile"/"'$PROFILE_UUID'"/g' App.xcodeproj/project.pbxproj
+              sed -i '' 's/"QAOnlineAppStoreProfile"/"'$PROFILE_UUID'"/g' App.xcodeproj/project.pbxproj
+              
+              # Find the buildSettings sections and add provisioning profile if it doesn't exist
+              if ! grep -q "PROVISIONING_PROFILE" App.xcodeproj/project.pbxproj; then
+                echo "📝 Adding provisioning profile to build settings..."
+                awk -v uuid="$PROFILE_UUID" '
+                /buildSettings = {/ {
+                    print $0
+                    print "\t\t\t\t\tPROVISIONING_PROFILE = \"" uuid "\";"
+                    next
+                }
+                { print $0 }
+                ' App.xcodeproj/project.pbxproj > App.xcodeproj/project.pbxproj.tmp && mv App.xcodeproj/project.pbxproj.tmp App.xcodeproj/project.pbxproj
+              fi
               
               echo "✅ iOS project configured"
               
