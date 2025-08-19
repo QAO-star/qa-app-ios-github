@@ -73,13 +73,13 @@ jobs:
               else
                 echo "⚠️ P12 import failed, trying with common passwords..."
                 # Try common passwords
-                for password in "password" "123456" "qaonline" "apple" "ios" "distribution" "certificate"; do
+                for password in "" "Geok1800!" "password" "123456" "qaonline" "apple" "ios" "distribution" "certificate"; do
                   echo "🔑 Trying password: $password"
                   if security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P "$password" 2>/dev/null; then
                     echo "✅ P12 imported successfully with password: $password"
-                    break
-                  fi
-                done
+                      break
+                    fi
+                  done
               fi
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
             elif [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
@@ -140,8 +140,8 @@ jobs:
             echo "⚙️ Configuring iOS project..."
             
             # Update iOS project configuration
-            cd ios/App
-            
+              cd ios/App
+              
             # Update bundle identifier and team ID
             if [ -f "App.xcodeproj/project.pbxproj" ]; then
               # Set bundle identifier
@@ -159,14 +159,14 @@ jobs:
               echo "✅ iOS project configured"
             fi
             
-            cd ../..
+                cd ../..
       
       - run:
           name: "Build iOS app"
           command: |
             echo "🔨 Building iOS app..."
             
-            cd ios/App
+                    cd ios/App
             
             # Clean build
             xcodebuild clean -project App.xcodeproj -scheme App -configuration Release
@@ -190,7 +190,7 @@ jobs:
               -exportOptionsPlist exportOptions.plist
             
             # Check if IPA was created
-            if [ -f "App.ipa" ]; then
+                    if [ -f "App.ipa" ]; then
               echo "✅ IPA created successfully: App.ipa"
               ls -la App.ipa
             else
@@ -198,7 +198,7 @@ jobs:
               exit 1
             fi
             
-            cd ../..
+                  cd ../..
       
       - run:
           name: "Upload to App Store Connect"
