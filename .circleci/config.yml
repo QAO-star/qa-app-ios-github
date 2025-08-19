@@ -57,6 +57,13 @@ jobs:
             security unlock-keychain -p "temp" build.keychain
             security set-keychain-settings -t 3600 -l ~/Library/Keychains/build.keychain
             
+            # List keychains to verify setup
+            echo "📋 Available keychains:"
+            security list-keychains
+            
+            echo "📋 Default keychain:"
+            security default-keychain
+            
             # Install Apple Distribution certificate
             if [ -f "auto_distribution.cer" ]; then
               echo "🎉 Installing Apple Distribution certificate..."
@@ -88,6 +95,14 @@ jobs:
               echo "🔑 Installing iOS distribution certificate (P12)..."
               security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P ""
             fi
+            
+            # Verify certificate installation
+            echo "📋 Verifying certificate installation..."
+            security find-identity -v -p codesigning build.keychain || echo "⚠️ No codesigning identities found"
+            
+            # Set keychain search list
+            security list-keychains -s build.keychain
+            security default-keychain -s build.keychain
             
             # Install provisioning profile
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
