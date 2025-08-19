@@ -4,6 +4,9 @@ executors:
   macos:
     macos:
       xcode: "16.0.0"
+  node:
+    docker:
+      image: cimg/node:18.20.8
 
 jobs:
   build_and_upload_ios:
@@ -55,13 +58,14 @@ jobs:
             # Clear npm cache and install with verbose output
             npm cache clean --force
             
-            # Try npm install with different approaches
-            echo "📦 Attempting npm install..."
-            if npm install --verbose; then
-              echo "✅ npm install successful"
-            else
-              echo "⚠️ npm install failed, trying with legacy peer deps..."
-              npm install --legacy-peer-deps --verbose
+            # Try simple npm install first
+            echo "📦 Attempting simple npm install..."
+            npm install --no-optional --no-audit --no-fund
+            
+            # If that fails, try with more verbose output
+            if [ $? -ne 0 ]; then
+              echo "⚠️ Simple install failed, trying with verbose output..."
+              npm install --verbose --no-optional --no-audit --no-fund
             fi
             
             # Install Capacitor CLI globally
