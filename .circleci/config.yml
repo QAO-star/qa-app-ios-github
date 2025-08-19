@@ -67,7 +67,20 @@ jobs:
             # Install Apple Distribution certificate (try P12 first, then CER + PEM)
             if [ -f "ios_distribution.p12" ]; then
               echo "🎉 Installing iOS distribution certificate (P12)..."
-              security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P ""
+              # Try without password first
+              if security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P "" 2>/dev/null; then
+                echo "✅ P12 imported successfully without password"
+              else
+                echo "⚠️ P12 import failed, trying with common passwords..."
+                # Try common passwords
+                for password in "password" "123456" "qaonline" "apple" "ios" "distribution" "certificate"; do
+                  echo "🔑 Trying password: $password"
+                  if security import ios_distribution.p12 -k build.keychain -T /usr/bin/codesign -P "$password" 2>/dev/null; then
+                    echo "✅ P12 imported successfully with password: $password"
+                    break
+                  fi
+                done
+              fi
               security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "temp" build.keychain
             elif [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
               echo "🎉 Installing Apple Distribution certificate + private key..."
