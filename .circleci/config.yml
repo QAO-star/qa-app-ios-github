@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  macos: circleci/macos@2.0
+
 executors:
   macos:
     macos:
@@ -19,54 +22,29 @@ jobs:
             xcodebuild -version
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
             
-            # Install Node.js and npm
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            nvm install 18
-            nvm use 18
-            
-            # Ensure npm is in PATH
-            export PATH="$NVM_DIR/versions/node/v18.20.8/bin:$PATH"
-            
-            echo "✅ Node.js version: $(node --version)"
-            echo "✅ npm version: $(npm --version)"
-            echo "✅ npm location: $(which npm)"
+            echo "✅ Xcode setup completed"
       
       - run:
-          name: "Setup Capacitor without npm install"
+          name: "Use existing iOS project"
           command: |
-            echo "📦 Setting up Capacitor without npm install..."
+            echo "📱 Using existing iOS project..."
             
-            # Ensure npm is available
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-            export PATH="$NVM_DIR/versions/node/v18.20.8/bin:$PATH"
+            # Check if iOS project exists
+            if [ -d "ios/App" ]; then
+              echo "✅ Found existing iOS project"
+              ls -la ios/App/
+            else
+              echo "❌ iOS project not found"
+              exit 1
+            fi
             
-            echo "🔍 npm location: $(which npm)"
-            echo "🔍 npm version: $(npm --version)"
+            # Copy web content to iOS project if needed
+            if [ -d "public" ]; then
+              echo "📱 Copying web content to iOS project..."
+              cp -r public/* ios/App/App/ 2>/dev/null || echo "⚠️ Could not copy web content"
+            fi
             
-            # Install only Capacitor CLI globally (skip local dependencies)
-            echo "📦 Installing Capacitor CLI globally..."
-            npm install -g @capacitor/cli@6.0.0
-            
-            # Create basic iOS project structure manually
-            echo "📱 Creating iOS project structure..."
-            mkdir -p ios/App
-            
-            # Create basic Capacitor iOS project
-            echo "📱 Initializing Capacitor iOS project..."
-            npx cap init "QA-Online" "com.qaonline.app" --web-dir public
-            
-            # Add iOS platform
-            echo "📱 Adding iOS platform..."
-            npx cap add ios
-            
-            # Sync web content
-            echo "🔄 Syncing web content..."
-            npx cap sync ios
-            
-            echo "✅ Capacitor setup completed"
+            echo "✅ Using existing iOS project structure"
       
       - run:
           name: "Setup certificates and provisioning profiles"
@@ -182,29 +160,6 @@ jobs:
               -exportPath . \
               -exportOptionsPlist exportOptions.plist
             
-            # Create exportOptions.plist if it doesn't exist
-            if [ ! -f "exportOptions.plist" ]; then
-              echo '<?xml version="1.0" encoding="UTF-8"?>' > exportOptions.plist
-              echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> exportOptions.plist
-              echo '<plist version="1.0">' >> exportOptions.plist
-              echo '<dict>' >> exportOptions.plist
-              echo '    <key>method</key>' >> exportOptions.plist
-              echo '    <string>app-store</string>' >> exportOptions.plist
-              echo '    <key>teamID</key>' >> exportOptions.plist
-              echo '    <string>BL7NANM4RM</string>' >> exportOptions.plist
-              echo '    <key>signingStyle</key>' >> exportOptions.plist
-              echo '    <string>manual</string>' >> exportOptions.plist
-              echo '    <key>provisioningProfiles</key>' >> exportOptions.plist
-              echo '    <dict>' >> exportOptions.plist
-              echo '        <key>com.qaonline.app</key>' >> exportOptions.plist
-              echo '        <string>QAOnlineAppStoreProfile</string>' >> exportOptions.plist
-              echo '    </dict>' >> exportOptions.plist
-              echo '    <key>signingCertificate</key>' >> exportOptions.plist
-              echo '    <string>Apple Distribution</string>' >> exportOptions.plist
-              echo '</dict>' >> exportOptions.plist
-              echo '</plist>' >> exportOptions.plist
-            fi
-            
             # Check if IPA was created
             if [ -f "App.ipa" ]; then
               echo "✅ IPA created successfully: App.ipa"
@@ -240,14 +195,6 @@ jobs:
             echo "✅ Upload completed successfully!"
             
             cd ../..
-      
-      - store_artifacts:
-          path: ios/App/App.ipa
-          destination: app-store-ipa
-      
-      - store_artifacts:
-          path: ios/App/App.xcarchive
-          destination: xcarchive
 
   generate_csr_only:
     executor: macos
@@ -255,61 +202,38 @@ jobs:
       - checkout
       
       - run:
-          name: "Generate CSR for Apple Distribution Certificate"
+          name: "Generate CSR for certificate"
           command: |
-            echo "🚀 GENERATING CSR FOR APPLE DISTRIBUTION CERTIFICATE"
-            echo "🔧 This pipeline ONLY generates the CSR - no building or signing"
+            echo "🔐 Generating Certificate Signing Request..."
             
-            # Create a deterministic private key
-            REPO_SEED=$(echo "qa-app-ios-github-$(cat team.id 2>/dev/null || echo 'default')" | shasum -a 256 | cut -c1-32)
-            echo "🔍 Using repository seed: $REPO_SEED"
+            # Generate CSR
+            openssl req -new -newkey rsa:2048 -keyout distribution_private_key.pem -out distribution.csr -subj "/CN=Jonatan Koren/OU=QA-Online/O=QA-Online/C=IL"
             
-            # Generate consistent private key
-            openssl genrsa -out auto_distribution_private_key.pem 2048
-            echo "✅ Generated private key: auto_distribution_private_key.pem"
+            # Display CSR content
+            echo "📋 CSR Content:"
+            cat distribution.csr
             
-            # Create CSR
-            openssl req -new -key auto_distribution_private_key.pem -out auto_distribution.csr -subj "/C=IL/ST=Israel/L=Tel Aviv/O=Jonatan Koren/OU=Development/CN=Apple Distribution: Jonatan Koren"
-            echo "✅ Generated CSR: auto_distribution.csr"
-            
+            echo "✅ CSR generated successfully!"
+            echo "📁 Files created:"
+            echo "   - distribution.csr (Certificate Signing Request)"
+            echo "   - distribution_private_key.pem (Private Key)"
             echo ""
-            echo "📋 ===== COPY THIS CSR CONTENT ====="
-            cat auto_distribution.csr
-            echo "📋 ===== END CSR CONTENT ====="
-            echo ""
-            
-            echo "🎯 NEXT STEPS:"
-            echo "1. Copy the CSR content above (including BEGIN/END lines)"
-            echo "2. Go to: https://developer.apple.com/account/resources/certificates/list"
-            echo "3. Click '+' to create new certificate"
-            echo "4. Select 'Apple Distribution' certificate type"
-            echo "5. Upload/paste the CSR content"
-            echo "6. Download the generated certificate as 'auto_distribution.cer'"
-            echo "7. Add 'auto_distribution.cer' to your repository"
-            echo "8. Also add 'auto_distribution_private_key.pem' to your repository"
-            echo "9. Run the normal build pipeline"
-            echo ""
-            echo "💾 IMPORTANT: Save both files to your repository:"
-            echo "   - auto_distribution.cer (download from Apple)"
-            echo "   - auto_distribution_private_key.pem (generated here)"
-            
-      - store_artifacts:
-          path: auto_distribution.csr
-          destination: csr
-      - store_artifacts:
-          path: auto_distribution_private_key.pem  
-          destination: private-key
+            echo "🔐 Next steps:"
+            echo "1. Copy the CSR content above"
+            echo "2. Go to Apple Developer Portal"
+            echo "3. Create a new Distribution Certificate"
+            echo "4. Upload the CSR content"
+            echo "5. Download the .cer file"
+            echo "6. Add it to your repository"
 
 workflows:
-  version: 2
-  
   build_and_upload:
     jobs:
       - build_and_upload_ios:
+          context: apple-credentials
           filters:
             branches:
               only: main
-          context: apple-credentials
   
   generate_csr:
     jobs:
