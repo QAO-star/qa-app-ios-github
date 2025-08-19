@@ -115,8 +115,19 @@ jobs:
             if [ -f "QAOnlineAppStoreProfile.mobileprovision" ]; then
               echo "📋 Installing provisioning profile..."
               mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-              cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-              echo "✅ Provisioning profile installed as: QAOnlineAppStoreProfile.mobileprovision"
+              
+              # Extract UUID from provisioning profile
+              echo "🔍 Extracting provisioning profile UUID..."
+              PROFILE_UUID=$(security cms -D -i QAOnlineAppStoreProfile.mobileprovision | grep -A 1 "UUID" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+              echo "📋 Provisioning profile UUID: $PROFILE_UUID"
+              
+              # Install with UUID as filename
+              cp QAOnlineAppStoreProfile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/"$PROFILE_UUID".mobileprovision
+              echo "✅ Provisioning profile installed as: $PROFILE_UUID.mobileprovision"
+              
+              # Export UUID for use in project configuration
+              echo "export PROFILE_UUID=$PROFILE_UUID" >> ~/.bashrc
+              export PROFILE_UUID="$PROFILE_UUID"
             else
               echo "❌ No provisioning profile found!"
               echo "Available files:"
@@ -201,7 +212,7 @@ jobs:
               awk '
               /buildSettings = {/ {
                   print $0
-                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"QAOnlineAppStoreProfile\";"
+                  print "\t\t\t\t\tPROVISIONING_PROFILE = \"'$PROFILE_UUID'\";"
                   next
               }
               { print $0 }
