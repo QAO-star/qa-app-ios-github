@@ -64,7 +64,7 @@ jobs:
             echo "📋 Default keychain:"
             security default-keychain
             
-                        # Install Apple Distribution certificate (try CER + PEM first, then P12)
+            # Install Apple Distribution certificate (try CER + PEM first, then P12)
             if [ -f "auto_distribution.cer" ] && [ -f "auto_distribution_private_key.pem" ]; then
               echo "🎉 Installing Apple Distribution certificate + private key..."
               security import auto_distribution.cer -k build.keychain -T /usr/bin/codesign
@@ -130,7 +130,8 @@ jobs:
             
             echo "✅ Certificate setup completed"
       
-            - run:
+      
+      - run:
           name: "Configure iOS project"
           command: |
             echo "⚙️ Configuring iOS project..."
@@ -171,7 +172,7 @@ jobs:
           command: |
             echo "🔨 Building iOS app..."
             
-                    cd ios/App
+            cd ios/App
             
             # Clean build
             xcodebuild clean -project App.xcodeproj -scheme App -configuration Release
@@ -195,7 +196,7 @@ jobs:
               -exportOptionsPlist exportOptions.plist
             
             # Check if IPA was created
-                    if [ -f "App.ipa" ]; then
+            if [ -f "App.ipa" ]; then
               echo "✅ IPA created successfully: App.ipa"
               ls -la App.ipa
             else
@@ -203,7 +204,7 @@ jobs:
               exit 1
             fi
             
-                  cd ../..
+            cd ../..
       
       - run:
           name: "Upload to App Store Connect"
